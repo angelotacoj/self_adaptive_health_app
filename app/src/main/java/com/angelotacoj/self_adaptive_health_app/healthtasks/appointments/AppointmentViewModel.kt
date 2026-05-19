@@ -1,11 +1,11 @@
 package com.angelotacoj.self_adaptive_health_app.healthtasks.appointments
 
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import com.angelotacoj.self_adaptive_health_app.adaptive.presentation.state.AdaptiveUiState
 import com.angelotacoj.self_adaptive_health_app.core.model.Appointment
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 enum class AppointmentStep {
     Overview,
@@ -39,51 +39,51 @@ sealed interface AppointmentEvent {
 }
 
 class AppointmentViewModel : ViewModel() {
-    var state: AppointmentState? by mutableStateOf(null)
-        private set
+    private val _state = MutableStateFlow<AppointmentState?>(null)
+    val state: StateFlow<AppointmentState?> = _state.asStateFlow()
 
     fun start(target: Appointment, options: List<Appointment>) {
-        if (state?.targetAppointment != target) {
-            state = AppointmentState(targetAppointment = target, appointmentOptions = options)
+        if (_state.value?.targetAppointment != target) {
+            _state.value = AppointmentState(targetAppointment = target, appointmentOptions = options)
         }
     }
 
     fun onAction(action: AppointmentAction): AppointmentEvent? {
-        val current = state ?: return null
+        val current = _state.value ?: return null
         return when (action) {
             AppointmentAction.StartListClicked -> {
-                state = current.copy(step = AppointmentStep.List)
+                _state.value = current.copy(step = AppointmentStep.List)
                 null
             }
             is AppointmentAction.AppointmentSelected -> {
-                state = current.copy(step = AppointmentStep.Detail, selectedAppointment = action.appointment)
+                _state.value = current.copy(step = AppointmentStep.Detail, selectedAppointment = action.appointment)
                 null
             }
             AppointmentAction.ContinueFromDetailClicked -> {
-                state = current.copy(step = AppointmentStep.Confirmation)
+                _state.value = current.copy(step = AppointmentStep.Confirmation)
                 null
             }
             AppointmentAction.ConfirmFoundClicked -> {
-                state = current.copy(step = AppointmentStep.Completed)
+                _state.value = current.copy(step = AppointmentStep.Completed)
                 null
             }
             AppointmentAction.ReviewAgainClicked -> {
-                state = current.copy(step = AppointmentStep.Detail)
+                _state.value = current.copy(step = AppointmentStep.Detail)
                 null
             }
             AppointmentAction.BackClicked -> {
                 when (current.step) {
                     AppointmentStep.Overview -> AppointmentEvent.ExitTask
-                    AppointmentStep.List -> state = current.copy(step = AppointmentStep.Overview)
-                    AppointmentStep.Detail -> state = current.copy(step = AppointmentStep.List)
-                    AppointmentStep.Confirmation -> state = current.copy(step = AppointmentStep.Detail)
+                    AppointmentStep.List -> _state.value = current.copy(step = AppointmentStep.Overview)
+                    AppointmentStep.Detail -> _state.value = current.copy(step = AppointmentStep.List)
+                    AppointmentStep.Confirmation -> _state.value = current.copy(step = AppointmentStep.Detail)
                     AppointmentStep.Completed -> return AppointmentEvent.ExitTask
                 }
                 null
             }
             AppointmentAction.CancelClicked -> AppointmentEvent.ExitTask
             is AppointmentAction.AdaptiveStateChanged -> {
-                state = current.copy(adaptiveUiState = action.adaptiveUiState)
+                _state.value = current.copy(adaptiveUiState = action.adaptiveUiState)
                 null
             }
         }

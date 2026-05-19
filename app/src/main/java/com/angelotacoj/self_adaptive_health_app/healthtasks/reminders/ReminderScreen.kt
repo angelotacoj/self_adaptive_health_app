@@ -49,12 +49,25 @@ fun ReminderScreen(
         onNavigationClick = {
             onAdaptiveEvent(AdaptiveInteractionEventType.BACK_PRESSED, screenId)
             if (onAction(ReminderAction.BackClicked) is ReminderEvent.ExitTask) onExit()
-        }
+        },
+        adaptiveUiState = state.adaptiveUiState
     ) {
-        AdaptiveSuggestionCard(state.adaptiveUiState.pendingAdaptation, onApplyAdaptation, onRejectAdaptation)
-        AdaptiveConfirmationDialog(state.adaptiveUiState.pendingAdaptation, onApplyAdaptation, onRejectAdaptation, onRejectAdaptation)
+        AdaptiveSuggestionCard(state.adaptiveUiState.pendingAdaptation, onApplyAdaptation, onRejectAdaptation, state.adaptiveUiState)
+        AdaptiveConfirmationDialog(
+            state.adaptiveUiState.pendingAdaptation,
+            onConfirm = {
+                onApplyAdaptation()
+                if (state.step == ReminderStep.ReviewSummary) {
+                    onAction(ReminderAction.SaveReminderClicked)
+                    onLog(InteractionEventType.TASK_COMPLETED, ScreenId.REMINDER_SAVED, "T3 completed.")
+                }
+            },
+            onEdit = onRejectAdaptation,
+            onCancel = onRejectAdaptation,
+            adaptiveUiState = state.adaptiveUiState
+        )
         ContextualHelpBox(state.adaptiveUiState, onHideHelp)
-        UndoAdaptationCard(state.adaptiveUiState.undoMessageVisible, onUndoAdaptation, onHideHelp)
+        UndoAdaptationCard(state.adaptiveUiState.undoMessageVisible, onUndoAdaptation, onHideHelp, state.adaptiveUiState)
 
         when (state.step) {
             ReminderStep.Intro -> {

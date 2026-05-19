@@ -1,14 +1,14 @@
 package com.angelotacoj.self_adaptive_health_app.experiment
 
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import com.angelotacoj.self_adaptive_health_app.core.model.ExperimentGroup
 import com.angelotacoj.self_adaptive_health_app.core.model.ExperimentSession
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 data class ExperimentSetupState(
-    val participantCode: String = "P01",
+    val participantCode: String = "",
     val selectedGroup: ExperimentGroup = ExperimentGroup.GroupA,
     val errorMessage: String? = null
 ) {
@@ -26,31 +26,31 @@ sealed interface ExperimentSetupEvent {
 }
 
 class ExperimentSetupViewModel : ViewModel() {
-    var state by mutableStateOf(ExperimentSetupState())
-        private set
+    private val _state = MutableStateFlow(ExperimentSetupState())
+    val state: StateFlow<ExperimentSetupState> = _state.asStateFlow()
 
     fun onAction(action: ExperimentSetupAction): ExperimentSetupEvent? {
         return when (action) {
             is ExperimentSetupAction.ParticipantCodeChanged -> {
-                state = state.copy(participantCode = action.value.uppercase(), errorMessage = null)
+                _state.value = _state.value.copy(participantCode = action.value.uppercase(), errorMessage = null)
                 null
             }
 
             is ExperimentSetupAction.GroupSelected -> {
-                state = state.copy(selectedGroup = action.group, errorMessage = null)
+                _state.value = _state.value.copy(selectedGroup = action.group, errorMessage = null)
                 null
             }
 
             ExperimentSetupAction.StartSessionClicked -> {
-                val cleanCode = state.participantCode.trim()
+                val cleanCode = _state.value.participantCode.trim()
                 if (cleanCode.isBlank()) {
-                    state = state.copy(errorMessage = "Ingrese un código de participante, por ejemplo P01.")
+                    _state.value = _state.value.copy(errorMessage = "Ingrese un código de participante, por ejemplo P01.")
                     null
                 } else {
                     ExperimentSetupEvent.StartSession(
                         ExperimentSession(
                             participantCode = cleanCode,
-                            group = state.selectedGroup
+                            group = _state.value.selectedGroup
                         )
                     )
                 }

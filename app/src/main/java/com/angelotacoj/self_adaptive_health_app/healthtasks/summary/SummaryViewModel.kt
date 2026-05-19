@@ -1,11 +1,11 @@
 package com.angelotacoj.self_adaptive_health_app.healthtasks.summary
 
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import com.angelotacoj.self_adaptive_health_app.adaptive.presentation.state.AdaptiveUiState
 import com.angelotacoj.self_adaptive_health_app.core.model.FakeHealthDataSet
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 enum class SummaryStep {
     Intro,
@@ -43,49 +43,49 @@ sealed interface SummaryEvent {
 }
 
 class SummaryViewModel : ViewModel() {
-    var state: SummaryState? by mutableStateOf(null)
-        private set
+    private val _state = MutableStateFlow<SummaryState?>(null)
+    val state: StateFlow<SummaryState?> = _state.asStateFlow()
 
     fun start(dataSet: FakeHealthDataSet) {
-        if (state?.dataSet?.id != dataSet.id) {
-            state = SummaryState(dataSet = dataSet)
+        if (_state.value?.dataSet?.id != dataSet.id) {
+            _state.value = SummaryState(dataSet = dataSet)
         }
     }
 
     fun onAction(action: SummaryAction): SummaryEvent? {
-        val current = state ?: return null
+        val current = _state.value ?: return null
         return when (action) {
             SummaryAction.StartReviewClicked -> {
-                state = current.copy(step = SummaryStep.Details)
+                _state.value = current.copy(step = SummaryStep.Details)
                 null
             }
             SummaryAction.SaveInformationClicked -> {
-                state = current.copy(step = SummaryStep.ReinforcedConfirmation)
+                _state.value = current.copy(step = SummaryStep.ReinforcedConfirmation)
                 null
             }
             SummaryAction.ConfirmClicked -> {
-                state = current.copy(step = SummaryStep.Final, result = SummaryResult.Confirmed)
+                _state.value = current.copy(step = SummaryStep.Final, result = SummaryResult.Confirmed)
                 null
             }
             SummaryAction.EditClicked -> {
-                state = current.copy(step = SummaryStep.Details, result = null, editNote = "El participante seleccionó Editar. No se modificaron datos reales.")
+                _state.value = current.copy(step = SummaryStep.Details, result = null, editNote = "El participante seleccionó Editar. No se modificaron datos reales.")
                 null
             }
             SummaryAction.CancelClicked -> {
-                state = current.copy(step = SummaryStep.Final, result = SummaryResult.Cancelled)
+                _state.value = current.copy(step = SummaryStep.Final, result = SummaryResult.Cancelled)
                 null
             }
             SummaryAction.BackClicked -> {
                 when (current.step) {
                     SummaryStep.Intro -> return SummaryEvent.ExitTask
-                    SummaryStep.Details -> state = current.copy(step = SummaryStep.Intro)
-                    SummaryStep.ReinforcedConfirmation -> state = current.copy(step = SummaryStep.Details)
+                    SummaryStep.Details -> _state.value = current.copy(step = SummaryStep.Intro)
+                    SummaryStep.ReinforcedConfirmation -> _state.value = current.copy(step = SummaryStep.Details)
                     SummaryStep.Final -> return SummaryEvent.ExitTask
                 }
                 null
             }
             is SummaryAction.AdaptiveStateChanged -> {
-                state = current.copy(adaptiveUiState = action.adaptiveUiState)
+                _state.value = current.copy(adaptiveUiState = action.adaptiveUiState)
                 null
             }
         }

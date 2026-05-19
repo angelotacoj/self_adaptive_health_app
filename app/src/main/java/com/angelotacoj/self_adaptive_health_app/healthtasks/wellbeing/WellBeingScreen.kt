@@ -52,12 +52,25 @@ fun WellBeingScreen(
         onNavigationClick = {
             onAdaptiveEvent(AdaptiveInteractionEventType.BACK_PRESSED, screenId)
             if (onAction(WellBeingAction.BackClicked) is WellBeingEvent.ExitTask) onExit()
-        }
+        },
+        adaptiveUiState = state.adaptiveUiState
     ) {
-        AdaptiveSuggestionCard(state.adaptiveUiState.pendingAdaptation, onApplyAdaptation, onRejectAdaptation)
-        AdaptiveConfirmationDialog(state.adaptiveUiState.pendingAdaptation, onApplyAdaptation, { onAction(WellBeingAction.EditClicked) }, onRejectAdaptation)
+        AdaptiveSuggestionCard(state.adaptiveUiState.pendingAdaptation, onApplyAdaptation, onRejectAdaptation, state.adaptiveUiState)
+        AdaptiveConfirmationDialog(
+            state.adaptiveUiState.pendingAdaptation,
+            onConfirm = {
+                onApplyAdaptation()
+                if (state.step == WellBeingStep.Review) {
+                    onAction(WellBeingAction.SaveClicked)
+                    onLog(InteractionEventType.TASK_COMPLETED, ScreenId.WELL_BEING_SUCCESS, "T2 completed.")
+                }
+            },
+            onEdit = { onAction(WellBeingAction.EditClicked) },
+            onCancel = onRejectAdaptation,
+            adaptiveUiState = state.adaptiveUiState
+        )
         ContextualHelpBox(state.adaptiveUiState, onHideHelp)
-        UndoAdaptationCard(state.adaptiveUiState.undoMessageVisible, onUndoAdaptation, onHideHelp)
+        UndoAdaptationCard(state.adaptiveUiState.undoMessageVisible, onUndoAdaptation, onHideHelp, state.adaptiveUiState)
 
         when (state.step) {
             WellBeingStep.Intro -> {

@@ -1,6 +1,7 @@
 package com.angelotacoj.self_adaptive_health_app.core.data
 
 import com.angelotacoj.self_adaptive_health_app.core.model.Appointment
+import com.angelotacoj.self_adaptive_health_app.core.model.AccessCredentials
 import com.angelotacoj.self_adaptive_health_app.core.model.ExperimentGroup
 import com.angelotacoj.self_adaptive_health_app.core.model.FakeHealthDataSet
 import com.angelotacoj.self_adaptive_health_app.core.model.ReminderTemplate
@@ -16,6 +17,10 @@ class FakeHealthDataSource {
 
     private val setA = FakeHealthDataSet(
         id = "Conjunto A",
+        accessCredentials = AccessCredentials(
+            userCode = "PACIENTE01",
+            simulatedPin = "1234"
+        ),
         appointment = Appointment(
             title = "Chequeo general",
             date = "15 de junio",
@@ -40,6 +45,10 @@ class FakeHealthDataSource {
 
     private val setB = FakeHealthDataSet(
         id = "Conjunto B",
+        accessCredentials = AccessCredentials(
+            userCode = "PACIENTE02",
+            simulatedPin = "5678"
+        ),
         appointment = Appointment(
             title = "Control preventivo",
             date = "18 de junio",

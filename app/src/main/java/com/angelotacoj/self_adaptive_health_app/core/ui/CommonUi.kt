@@ -34,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -134,10 +135,12 @@ fun HealthTopBar(
 ) {
     TopAppBar(
         title = {
-            Column {
+            Column(
+                modifier = Modifier.padding(vertical = 10.dp)
+            ) {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.titleLarge.copy(fontSize = (24 * adaptiveUiState.textScale).sp),
+                    style = MaterialTheme.typography.titleLarge.copy(fontSize = (22 * adaptiveUiState.textScale).sp),
                     fontWeight = FontWeight.Bold
                 )
                 if (subtitle != null) {
@@ -184,13 +187,13 @@ fun HeroHeaderCard(
         ) {
             Text(
                 text = appName,
-                style = MaterialTheme.typography.headlineMedium.copy(fontSize = (30 * adaptiveUiState.textScale).sp),
+                style = MaterialTheme.typography.headlineMedium.copy(fontSize = (27 * adaptiveUiState.textScale).sp),
                 fontWeight = FontWeight.ExtraBold,
                 color = Color(0xFF123F3A)
             )
             Text(
                 text = description,
-                style = MaterialTheme.typography.bodyLarge.copy(fontSize = (18 * adaptiveUiState.textScale).sp),
+                style = MaterialTheme.typography.bodyLarge.copy(fontSize = (17 * adaptiveUiState.textScale).sp),
                 color = Color(0xFF33514D)
             )
         }
@@ -211,7 +214,6 @@ fun SessionInfoCard(
             "Participante" to participantCode,
             "Grupo" to group,
             "Condición" to condition,
-            "Datos" to dataSet
         ),
         modifier = modifier
     )
@@ -235,13 +237,13 @@ fun SimulatedDataNoticeCard(
         Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(
                 text = "Datos simulados",
-                style = MaterialTheme.typography.titleMedium.copy(fontSize = (20 * adaptiveUiState.textScale).sp),
+                style = MaterialTheme.typography.titleMedium.copy(fontSize = (18 * adaptiveUiState.textScale).sp),
                 fontWeight = FontWeight.Bold,
                 color = Color(0xFF245B55)
             )
             Text(
                 text = "Los datos son simulados. No se almacena información clínica real.",
-                style = MaterialTheme.typography.bodyLarge.copy(fontSize = (18 * adaptiveUiState.textScale).sp),
+                style = MaterialTheme.typography.bodyLarge.copy(fontSize = (17 * adaptiveUiState.textScale).sp),
                 color = Color(0xFF345B57)
             )
         }
@@ -266,7 +268,7 @@ fun LargePrimaryButton(
         shape = RoundedCornerShape(20.dp),
         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
     ) {
-        Text(text = text, style = MaterialTheme.typography.titleMedium.copy(fontSize = (19 * adaptiveUiState.textScale).sp))
+        Text(text = text, style = MaterialTheme.typography.titleMedium.copy(fontSize = (17 * adaptiveUiState.textScale).sp))
     }
 }
 
@@ -286,7 +288,7 @@ fun LargeSecondaryButton(
         shape = RoundedCornerShape(20.dp),
         colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary)
     ) {
-        Text(text = text, style = MaterialTheme.typography.titleMedium.copy(fontSize = (19 * adaptiveUiState.textScale).sp))
+        Text(text = text, style = MaterialTheme.typography.titleMedium.copy(fontSize = (17 * adaptiveUiState.textScale).sp))
     }
 }
 
@@ -306,7 +308,7 @@ fun LargeDestructiveButton(
         shape = RoundedCornerShape(20.dp),
         colors = ButtonDefaults.outlinedButtonColors(contentColor = SoftRed)
     ) {
-        Text(text = text, style = MaterialTheme.typography.titleMedium.copy(fontSize = (18 * adaptiveUiState.textScale).sp))
+        Text(text = text, style = MaterialTheme.typography.titleMedium.copy(fontSize = (17 * adaptiveUiState.textScale).sp))
     }
 }
 
@@ -329,13 +331,13 @@ fun InfoCard(
         ) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.titleLarge.copy(fontSize = (23 * adaptiveUiState.textScale).sp),
+                style = MaterialTheme.typography.titleLarge.copy(fontSize = (21 * adaptiveUiState.textScale).sp),
                 fontWeight = FontWeight.Bold
             )
             lines.forEach { line ->
                 Text(
                     text = "• $line",
-                    style = MaterialTheme.typography.bodyLarge.copy(fontSize = (18 * adaptiveUiState.textScale).sp),
+                    style = MaterialTheme.typography.bodyLarge.copy(fontSize = (17 * adaptiveUiState.textScale).sp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -377,7 +379,7 @@ fun TaskProgressHeader(
                 color = MaterialTheme.colorScheme.primary,
                 trackColor = Color(0xFFE8DCC3)
             )
-            Text(title, style = MaterialTheme.typography.titleLarge.copy(fontSize = (23 * adaptiveUiState.textScale).sp), fontWeight = FontWeight.Bold)
+            Text(title, style = MaterialTheme.typography.titleLarge.copy(fontSize = (21 * adaptiveUiState.textScale).sp), fontWeight = FontWeight.Bold)
             if (adaptiveUiState.guidedModeEnabled && adaptiveUiState.guidedStepMessage != null) {
                 Text(
                     text = adaptiveUiState.guidedStepMessage,
@@ -406,11 +408,11 @@ fun SummaryReviewCard(
             modifier = Modifier.padding(22.dp),
             verticalArrangement = Arrangement.spacedBy(if (adaptiveUiState.increasedSpacing) 16.dp else 12.dp)
         ) {
-            Text(title, style = MaterialTheme.typography.titleLarge.copy(fontSize = (23 * adaptiveUiState.textScale).sp), fontWeight = FontWeight.Bold)
+            Text(title, style = MaterialTheme.typography.titleLarge.copy(fontSize = (21 * adaptiveUiState.textScale).sp), fontWeight = FontWeight.Bold)
             rows.forEach { (label, value) ->
                 Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Text(label, style = MaterialTheme.typography.titleMedium.copy(fontSize = (18 * adaptiveUiState.textScale).sp), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                    Text(value, style = MaterialTheme.typography.bodyLarge.copy(fontSize = (19 * adaptiveUiState.textScale).sp), color = MaterialTheme.colorScheme.onSurface)
+                    Text(label, style = MaterialTheme.typography.titleMedium.copy(fontSize = (17 * adaptiveUiState.textScale).sp), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                    Text(value, style = MaterialTheme.typography.bodyLarge.copy(fontSize = (17 * adaptiveUiState.textScale).sp), color = MaterialTheme.colorScheme.onSurface)
                 }
             }
         }
@@ -426,6 +428,8 @@ fun TaskCard(
     modifier: Modifier = Modifier,
     taskNumber: String? = null,
     status: String? = null,
+    enabled: Boolean = true,
+    startButtonTestTag: String? = null,
     adaptiveUiState: AdaptiveUiState = AdaptiveUiState()
 ) {
     ElevatedCard(
@@ -444,13 +448,19 @@ fun TaskCard(
                     if (status != null) Text(status, color = Color(0xFF4C7B52), fontWeight = FontWeight.SemiBold)
                 }
             }
-            Text(text = title, style = MaterialTheme.typography.titleLarge.copy(fontSize = (23 * adaptiveUiState.textScale).sp), fontWeight = FontWeight.Bold)
+            Text(text = title, style = MaterialTheme.typography.titleLarge.copy(fontSize = (21 * adaptiveUiState.textScale).sp), fontWeight = FontWeight.Bold)
             Text(
                 text = description,
-                style = MaterialTheme.typography.bodyLarge.copy(fontSize = (18 * adaptiveUiState.textScale).sp),
+                style = MaterialTheme.typography.bodyLarge.copy(fontSize = (17 * adaptiveUiState.textScale).sp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            LargePrimaryButton(text = buttonText, onClick = onClick, adaptiveUiState = adaptiveUiState)
+            LargePrimaryButton(
+                text = buttonText,
+                onClick = onClick,
+                modifier = if (startButtonTestTag != null) Modifier.testTag(startButtonTestTag) else Modifier,
+                enabled = enabled,
+                adaptiveUiState = adaptiveUiState
+            )
         }
     }
 }
@@ -460,11 +470,12 @@ fun ButtonRow(
     primaryText: String,
     onPrimary: () -> Unit,
     secondaryText: String,
-    onSecondary: () -> Unit
+    onSecondary: () -> Unit,
+    adaptiveUiState: AdaptiveUiState = AdaptiveUiState()
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        LargeSecondaryButton(text = secondaryText, onClick = onSecondary, modifier = Modifier.weight(1f))
-        LargePrimaryButton(text = primaryText, onClick = onPrimary, modifier = Modifier.weight(1f))
+        LargeSecondaryButton(text = secondaryText, onClick = onSecondary, modifier = Modifier.weight(1f), adaptiveUiState = adaptiveUiState)
+        LargePrimaryButton(text = primaryText, onClick = onPrimary, modifier = Modifier.weight(1f), adaptiveUiState = adaptiveUiState)
     }
 }
 

@@ -56,17 +56,34 @@ fun SummaryScreen(
         onNavigationClick = {
             onAdaptiveEvent(AdaptiveInteractionEventType.BACK_PRESSED, screenId)
             if (onAction(SummaryAction.BackClicked) is SummaryEvent.ExitTask) onExit()
-        }
+        },
+        adaptiveUiState = state.adaptiveUiState
     ) {
-        AdaptiveSuggestionCard(state.adaptiveUiState.pendingAdaptation, onApplyAdaptation, onRejectAdaptation)
-        AdaptiveConfirmationDialog(state.adaptiveUiState.pendingAdaptation, onApplyAdaptation, { onAction(SummaryAction.EditClicked) }, onRejectAdaptation)
+        AdaptiveSuggestionCard(state.adaptiveUiState.pendingAdaptation, onApplyAdaptation, onRejectAdaptation, state.adaptiveUiState)
+        AdaptiveConfirmationDialog(
+            state.adaptiveUiState.pendingAdaptation,
+            onConfirm = {
+                onApplyAdaptation()
+                when (state.step) {
+                    SummaryStep.Details -> onAction(SummaryAction.SaveInformationClicked)
+                    SummaryStep.ReinforcedConfirmation -> {
+                        onAction(SummaryAction.ConfirmClicked)
+                        onLog(InteractionEventType.TASK_COMPLETED, ScreenId.SUMMARY_FINAL, "T4 completed with confirmation.")
+                    }
+                    else -> Unit
+                }
+            },
+            onEdit = { onAction(SummaryAction.EditClicked) },
+            onCancel = onRejectAdaptation,
+            adaptiveUiState = state.adaptiveUiState
+        )
         ContextualHelpBox(state.adaptiveUiState, onHideHelp)
-        UndoAdaptationCard(state.adaptiveUiState.undoMessageVisible, onUndoAdaptation, onHideHelp)
+        UndoAdaptationCard(state.adaptiveUiState.undoMessageVisible, onUndoAdaptation, onHideHelp, state.adaptiveUiState)
 
         when (state.step) {
             SummaryStep.Intro -> {
                 TaskProgressHeader("Paso 1 de 4", "Resumen de información")
-                InstructionCard("Instrucciones de la tarea", listOf("Revise la cita y el recordatorio simulados.", "Guardar requiere una confirmación reforzada."))
+                InstructionCard("Instrucciones de la tarea", listOf("Revise el acceso y el recordatorio simulados.", "Guardar requiere una confirmación reforzada."))
                 LargePrimaryButton("Revisar detalles", { onAction(SummaryAction.StartReviewClicked) }, adaptiveUiState = state.adaptiveUiState)
                 LargeSecondaryButton("Necesito ayuda", { onAdaptiveEvent(AdaptiveInteractionEventType.HELP_REQUESTED, screenId) }, adaptiveUiState = state.adaptiveUiState)
             }
@@ -75,7 +92,7 @@ fun SummaryScreen(
                 SummaryReviewCard(
                     "Datos simulados",
                     listOf(
-                        "Cita" to "${state.dataSet.appointment.title}, ${state.dataSet.appointment.date}, ${state.dataSet.appointment.time}",
+                        "Acceso" to "Código ${state.dataSet.accessCredentials.userCode}",
                         "Recordatorio" to state.dataSet.reminder.time
                     )
                 )

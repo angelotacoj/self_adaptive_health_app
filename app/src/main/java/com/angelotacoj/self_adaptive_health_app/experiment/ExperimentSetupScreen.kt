@@ -1,5 +1,6 @@
 package com.angelotacoj.self_adaptive_health_app.experiment
 
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -19,14 +20,21 @@ import com.angelotacoj.self_adaptive_health_app.core.model.ExperimentSession
 import com.angelotacoj.self_adaptive_health_app.core.ui.HeroHeaderCard
 import com.angelotacoj.self_adaptive_health_app.core.ui.InstructionCard
 import com.angelotacoj.self_adaptive_health_app.core.ui.LargePrimaryButton
+import com.angelotacoj.self_adaptive_health_app.core.ui.LargeSecondaryButton
+import com.angelotacoj.self_adaptive_health_app.core.ui.LargeDestructiveButton
 import com.angelotacoj.self_adaptive_health_app.core.ui.ScreenContainer
 import com.angelotacoj.self_adaptive_health_app.core.ui.SimulatedDataNoticeCard
 
 @Composable
 fun ExperimentSetupScreen(
     state: ExperimentSetupState,
+    existingSessionMessage: String?,
     onAction: (ExperimentSetupAction) -> ExperimentSetupEvent?,
-    onStartSession: (ExperimentSession) -> Unit
+    onStartSession: (ExperimentSession) -> Unit,
+    onContinueExistingSession: () -> Unit,
+    onStartNewSession: () -> Unit,
+    onDeleteExistingSession: () -> Unit,
+    onOpenResearcherPanel: () -> Unit
 ) {
     ScreenContainer(
         title = "Configuración AURA",
@@ -38,7 +46,7 @@ fun ExperimentSetupScreen(
             description = "Prototipo de salud móvil simulada para evaluación de interfaces."
         )
 
-        SimulatedDataNoticeCard()
+        //SimulatedDataNoticeCard()
 
         InstructionCard(
             title = "Antes de empezar",
@@ -54,7 +62,7 @@ fun ExperimentSetupScreen(
             onValueChange = { onAction(ExperimentSetupAction.ParticipantCodeChanged(it)) },
             modifier = Modifier.fillMaxWidth(),
             label = { Text("Código de participante") },
-            supportingText = { Text("Ejemplo: P01") },
+            supportingText = { Text("Ejemplo: P01 o 72891968") },
             textStyle = MaterialTheme.typography.titleLarge,
             singleLine = true,
             shape = MaterialTheme.shapes.large,
@@ -90,14 +98,14 @@ fun ExperimentSetupScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(
-                            text = "${group.label} - ${group.dataSetId}",
-                            style = MaterialTheme.typography.titleLarge,
+                            text = group.label,
+                            style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
                             text = group.orderDescription,
-                            style = MaterialTheme.typography.bodyLarge,
+                            style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -105,7 +113,7 @@ fun ExperimentSetupScreen(
             }
         }
 
-        Text(
+/*        Text(
             text = "Información adicional",
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.SemiBold
@@ -116,7 +124,7 @@ fun ExperimentSetupScreen(
             instructions = listOf(
                 state.selectedOrder
             )
-        )
+        )*/
 
         if (state.errorMessage != null) {
             Text(
@@ -126,14 +134,29 @@ fun ExperimentSetupScreen(
             )
         }
 
-        LargePrimaryButton(
-            text = "Iniciar sesión experimental",
-            onClick = {
-                val event = onAction(ExperimentSetupAction.StartSessionClicked)
-                if (event is ExperimentSetupEvent.StartSession) {
-                    onStartSession(event.session)
+        if (existingSessionMessage != null) {
+            InstructionCard(
+                title = "Sesión existente",
+                instructions = listOf(existingSessionMessage)
+            )
+            LargePrimaryButton("Continuar sesión existente", onContinueExistingSession)
+            LargeSecondaryButton("Iniciar nueva sesión", onStartNewSession)
+            LargeDestructiveButton("Borrar sesión anterior", onDeleteExistingSession)
+        } else {
+            LargePrimaryButton(
+                text = "Iniciar sesión experimental",
+                onClick = {
+                    val event = onAction(ExperimentSetupAction.StartSessionClicked)
+                    if (event is ExperimentSetupEvent.StartSession) {
+                        onStartSession(event.session)
+                    }
                 }
-            }
-        )
+            )
+
+            LargeSecondaryButton(
+                text = "Panel del investigador",
+                onClick = onOpenResearcherPanel
+            )
+        }
     }
 }

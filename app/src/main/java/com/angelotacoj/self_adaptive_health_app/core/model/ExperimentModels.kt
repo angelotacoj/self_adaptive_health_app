@@ -39,6 +39,9 @@ data class ExperimentSessionState(
     val currentCondition: ExperimentCondition
         get() = conditionOrder[currentConditionIndex]
 
+    val sessionId: String
+        get() = "${participantCode}_${sessionStartedAt}"
+
     fun cancelSession(): ExperimentSessionState = copy(isSessionActive = false, currentTaskId = null)
 
     fun startTask(taskId: TaskId): ExperimentSessionState = copy(currentTaskId = taskId)
@@ -75,6 +78,11 @@ data class Appointment(
     val instruction: String
 )
 
+data class AccessCredentials(
+    val userCode: String,
+    val simulatedPin: String
+)
+
 data class WellBeingRecord(
     val label: String,
     val value: Int
@@ -88,6 +96,7 @@ data class ReminderTemplate(
 
 data class FakeHealthDataSet(
     val id: String,
+    val accessCredentials: AccessCredentials,
     val appointment: Appointment,
     val appointmentOptions: List<Appointment>,
     val wellBeingRecord: WellBeingRecord,

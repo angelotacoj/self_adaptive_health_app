@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.map
 private val Context.experimentDataStore by preferencesDataStore(name = "experiment_preferences")
 
 data class SessionPreferenceSnapshot(
+    val currentSessionId: String? = null,
     val participantCode: String? = null,
     val group: String? = null,
     val currentCondition: String? = null,
@@ -26,6 +27,7 @@ data class SessionPreferenceSnapshot(
 class ExperimentPreferences(private val context: Context) {
     val sessionSnapshot: Flow<SessionPreferenceSnapshot> = context.experimentDataStore.data.map { prefs ->
         SessionPreferenceSnapshot(
+            currentSessionId = prefs[CURRENT_SESSION_ID],
             participantCode = prefs[PARTICIPANT_CODE],
             group = prefs[GROUP],
             currentCondition = prefs[CURRENT_CONDITION],
@@ -37,6 +39,7 @@ class ExperimentPreferences(private val context: Context) {
 
     suspend fun saveSession(state: ExperimentSessionState) {
         context.experimentDataStore.edit { prefs ->
+            prefs[CURRENT_SESSION_ID] = state.sessionId
             prefs[PARTICIPANT_CODE] = state.participantCode
             prefs[GROUP] = state.group.name
             prefs[CURRENT_CONDITION] = state.currentCondition.name
@@ -47,7 +50,12 @@ class ExperimentPreferences(private val context: Context) {
     }
 
     suspend fun clearSession() {
+        clearActiveSessionPreferences()
+    }
+
+    suspend fun clearActiveSessionPreferences() {
         context.experimentDataStore.edit { prefs ->
+            prefs.remove(CURRENT_SESSION_ID)
             prefs.remove(PARTICIPANT_CODE)
             prefs.remove(GROUP)
             prefs.remove(CURRENT_CONDITION)
@@ -58,6 +66,7 @@ class ExperimentPreferences(private val context: Context) {
     }
 
     private companion object {
+        val CURRENT_SESSION_ID = stringPreferencesKey("current_session_id")
         val PARTICIPANT_CODE = stringPreferencesKey("participant_code")
         val GROUP = stringPreferencesKey("group")
         val CURRENT_CONDITION = stringPreferencesKey("current_condition")

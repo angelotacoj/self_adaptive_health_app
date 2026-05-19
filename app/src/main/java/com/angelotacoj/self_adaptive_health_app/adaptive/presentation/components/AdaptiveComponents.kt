@@ -16,8 +16,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.PendingAdaptation
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.ValidationType
 import com.angelotacoj.self_adaptive_health_app.adaptive.presentation.state.AdaptiveUiState
@@ -39,9 +41,14 @@ fun ContextualHelpBox(
             modifier = Modifier.padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text("Ayuda para continuar", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color(0xFF275E83))
-            Text(state.contextualHelpMessage, style = MaterialTheme.typography.bodyLarge)
-            LargeSecondaryButton(text = "Ocultar", onClick = onHide)
+            Text(
+                "Ayuda para continuar",
+                style = MaterialTheme.typography.titleLarge.scaled(state),
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF275E83)
+            )
+            Text(state.contextualHelpMessage, style = MaterialTheme.typography.bodyLarge.scaled(state))
+            LargeSecondaryButton(text = "Ocultar", onClick = onHide, adaptiveUiState = state)
         }
     }
 }
@@ -50,7 +57,8 @@ fun ContextualHelpBox(
 fun AdaptiveSuggestionCard(
     pending: PendingAdaptation?,
     onApply: () -> Unit,
-    onReject: () -> Unit
+    onReject: () -> Unit,
+    adaptiveUiState: AdaptiveUiState = AdaptiveUiState()
 ) {
     if (pending == null || pending.validationType != ValidationType.SUGGESTED) return
     ElevatedCard(
@@ -63,11 +71,11 @@ fun AdaptiveSuggestionCard(
             modifier = Modifier.padding(22.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Text(pending.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Text(pending.message, style = MaterialTheme.typography.bodyLarge)
+            Text(pending.title, style = MaterialTheme.typography.titleLarge.scaled(adaptiveUiState), fontWeight = FontWeight.Bold)
+            Text(pending.message, style = MaterialTheme.typography.bodyLarge.scaled(adaptiveUiState))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                LargeSecondaryButton(text = "Ahora no", onClick = onReject, modifier = Modifier.weight(1f))
-                LargePrimaryButton(text = "Aplicar cambio", onClick = onApply, modifier = Modifier.weight(1f))
+                LargeSecondaryButton(text = "Ahora no", onClick = onReject, modifier = Modifier.weight(1f), adaptiveUiState = adaptiveUiState)
+                LargePrimaryButton(text = "Aplicar cambio", onClick = onApply, modifier = Modifier.weight(1f), adaptiveUiState = adaptiveUiState)
             }
         }
     }
@@ -78,19 +86,20 @@ fun AdaptiveConfirmationDialog(
     pending: PendingAdaptation?,
     onConfirm: () -> Unit,
     onEdit: () -> Unit,
-    onCancel: () -> Unit
+    onCancel: () -> Unit,
+    adaptiveUiState: AdaptiveUiState = AdaptiveUiState()
 ) {
     if (pending == null || pending.validationType != ValidationType.EXPLICIT) return
     AlertDialog(
         onDismissRequest = onCancel,
         shape = RoundedCornerShape(28.dp),
-        title = { Text(pending.title, style = MaterialTheme.typography.titleLarge) },
-        text = { Text(pending.message, style = MaterialTheme.typography.bodyLarge) },
-        confirmButton = { LargePrimaryButton(text = "Confirmar", onClick = onConfirm) },
+        title = { Text(pending.title, style = MaterialTheme.typography.titleLarge.scaled(adaptiveUiState)) },
+        text = { Text(pending.message, style = MaterialTheme.typography.bodyLarge.scaled(adaptiveUiState)) },
+        confirmButton = { LargePrimaryButton(text = "Confirmar", onClick = onConfirm, adaptiveUiState = adaptiveUiState) },
         dismissButton = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                LargeSecondaryButton(text = "Editar", onClick = onEdit)
-                LargeSecondaryButton(text = "Cancelar", onClick = onCancel)
+                LargeSecondaryButton(text = "Editar", onClick = onEdit, adaptiveUiState = adaptiveUiState)
+                LargeSecondaryButton(text = "Cancelar", onClick = onCancel, adaptiveUiState = adaptiveUiState)
             }
         }
     )
@@ -100,7 +109,8 @@ fun AdaptiveConfirmationDialog(
 fun UndoAdaptationCard(
     visible: Boolean,
     onUndo: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    adaptiveUiState: AdaptiveUiState = AdaptiveUiState()
 ) {
     if (!visible) return
     OutlinedCard(
@@ -112,13 +122,22 @@ fun UndoAdaptationCard(
             modifier = Modifier.padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text("Cambio aplicado", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text("Cambio aplicado", style = MaterialTheme.typography.titleMedium.scaled(adaptiveUiState), fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                LargeSecondaryButton(text = "Deshacer", onClick = onUndo, modifier = Modifier.weight(1f))
-                LargePrimaryButton(text = "Mantener cambio", onClick = onDismiss, modifier = Modifier.weight(1f))
+                LargeSecondaryButton(text = "Deshacer", onClick = onUndo, modifier = Modifier.weight(1f), adaptiveUiState = adaptiveUiState)
+                LargePrimaryButton(text = "Mantener cambio", onClick = onDismiss, modifier = Modifier.weight(1f), adaptiveUiState = adaptiveUiState)
             }
         }
     }
+}
+
+private fun TextStyle.scaled(state: AdaptiveUiState): TextStyle {
+    val currentSize = fontSize
+    val currentLineHeight = lineHeight
+    return copy(
+        fontSize = if (currentSize == TextUnit.Unspecified) currentSize else (currentSize.value * state.textScale).sp,
+        lineHeight = if (currentLineHeight == TextUnit.Unspecified) currentLineHeight else (currentLineHeight.value * state.textScale).sp
+    )
 }
 
 @Composable

@@ -1,11 +1,11 @@
 package com.angelotacoj.self_adaptive_health_app.healthtasks.wellbeing
 
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import com.angelotacoj.self_adaptive_health_app.adaptive.presentation.state.AdaptiveUiState
 import com.angelotacoj.self_adaptive_health_app.core.model.WellBeingRecord
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 enum class WellBeingStep {
     Intro,
@@ -42,29 +42,29 @@ sealed interface WellBeingEvent {
 }
 
 class WellBeingViewModel : ViewModel() {
-    var state: WellBeingState? by mutableStateOf(null)
-        private set
+    private val _state = MutableStateFlow<WellBeingState?>(null)
+    val state: StateFlow<WellBeingState?> = _state.asStateFlow()
 
     fun start(record: WellBeingRecord) {
-        if (state?.label != record.label) {
-            state = WellBeingState(label = record.label, suggestedValue = record.value, valueText = record.value.toString())
+        if (_state.value?.label != record.label) {
+            _state.value = WellBeingState(label = record.label, suggestedValue = record.value, valueText = record.value.toString())
         }
     }
 
     fun onAction(action: WellBeingAction): WellBeingEvent? {
-        val current = state ?: return null
+        val current = _state.value ?: return null
         return when (action) {
             WellBeingAction.StartFormClicked -> {
-                state = current.copy(step = WellBeingStep.Form, errorMessage = null)
+                _state.value = current.copy(step = WellBeingStep.Form, errorMessage = null)
                 null
             }
             is WellBeingAction.ValueChanged -> {
-                state = current.copy(valueText = action.value.filter { it.isDigit() }, errorMessage = null)
+                _state.value = current.copy(valueText = action.value.filter { it.isDigit() }, errorMessage = null)
                 null
             }
             WellBeingAction.ValidateClicked -> {
                 val value = current.valueText.toIntOrNull()
-                state = if (value == null || value !in 1..10) {
+                _state.value = if (value == null || value !in 1..10) {
                     current.copy(
                         step = WellBeingStep.Form,
                         errorMessage = "Ingrese un valor ficticio del 1 al 10.",
@@ -76,30 +76,30 @@ class WellBeingViewModel : ViewModel() {
                 null
             }
             WellBeingAction.ContinueToReviewClicked -> {
-                state = current.copy(step = WellBeingStep.Review)
+                _state.value = current.copy(step = WellBeingStep.Review)
                 null
             }
             WellBeingAction.SaveClicked -> {
-                state = current.copy(step = WellBeingStep.Success)
+                _state.value = current.copy(step = WellBeingStep.Success)
                 null
             }
             WellBeingAction.EditClicked -> {
-                state = current.copy(step = WellBeingStep.Form)
+                _state.value = current.copy(step = WellBeingStep.Form)
                 null
             }
             WellBeingAction.BackClicked -> {
                 when (current.step) {
                     WellBeingStep.Intro -> return WellBeingEvent.ExitTask
-                    WellBeingStep.Form -> state = current.copy(step = WellBeingStep.Intro)
-                    WellBeingStep.Validation -> state = current.copy(step = WellBeingStep.Form)
-                    WellBeingStep.Review -> state = current.copy(step = WellBeingStep.Validation)
+                    WellBeingStep.Form -> _state.value = current.copy(step = WellBeingStep.Intro)
+                    WellBeingStep.Validation -> _state.value = current.copy(step = WellBeingStep.Form)
+                    WellBeingStep.Review -> _state.value = current.copy(step = WellBeingStep.Form)
                     WellBeingStep.Success -> return WellBeingEvent.ExitTask
                 }
                 null
             }
             WellBeingAction.CancelClicked -> WellBeingEvent.ExitTask
             is WellBeingAction.AdaptiveStateChanged -> {
-                state = current.copy(adaptiveUiState = action.adaptiveUiState)
+                _state.value = current.copy(adaptiveUiState = action.adaptiveUiState)
                 null
             }
         }
