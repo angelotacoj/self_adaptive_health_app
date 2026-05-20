@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.activity.compose.BackHandler
 import kotlinx.coroutines.delay
+import com.angelotacoj.self_adaptive_health_app.adaptive.domain.engine.AdaptiveTiming
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.AdaptiveInteractionEventType
 import com.angelotacoj.self_adaptive_health_app.adaptive.presentation.components.AdaptiveConfirmationDialog
 import com.angelotacoj.self_adaptive_health_app.adaptive.presentation.components.AdaptiveSuggestionCard
@@ -38,8 +39,10 @@ fun ReminderScreen(
     }
     LaunchedEffect(screenId) {
         onLog(InteractionEventType.SCREEN_ENTERED, screenId, "Reminder step entered: $screenId.")
-        delay(180_000)
-        onAdaptiveEvent(AdaptiveInteractionEventType.PROLONGED_TIME, screenId)
+        if (AdaptiveTiming.prolongedTimeDetectionEnabled) {
+            delay(180_000)
+            onAdaptiveEvent(AdaptiveInteractionEventType.PROLONGED_TIME, screenId)
+        }
     }
 
     ScreenContainer(

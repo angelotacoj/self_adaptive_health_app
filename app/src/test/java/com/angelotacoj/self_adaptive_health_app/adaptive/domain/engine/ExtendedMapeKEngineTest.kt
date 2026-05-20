@@ -71,6 +71,42 @@ class ExtendedMapeKEngineTest {
         assertEquals(ValidationType.DIRECT, applied.plan.validationType)
         assertEquals(listOf(UiModification.UIM06_CONTEXTUAL_HELP), applied.plan.modifications)
         assertTrue(applied.state.contextualHelpVisible)
+        assertFalse(applied.state.undoMessageVisible)
+        assertEquals(null, applied.state.lastAppliedAdaptation)
+    }
+
+    @Test
+    fun helpRequestAfterProlongedTimeUsesAr05AndDoesNotShowUndoCard() {
+        val engine = ExtendedMapeKEngine(InMemoryKnowledgeRepository())
+        val ar02 = engine.processAccessEvent(AdaptiveInteractionEventType.PROLONGED_TIME) as AdaptationEngineResult.Applied
+
+        val result = engine.processAccessEvent(
+            eventType = AdaptiveInteractionEventType.HELP_REQUESTED,
+            currentState = ar02.state.copy(undoMessageVisible = false)
+        )
+
+        val applied = result as AdaptationEngineResult.Applied
+        assertEquals(AdaptationRuleId.AR05, applied.plan.ruleId)
+        assertTrue(applied.state.contextualHelpVisible)
+        assertFalse(applied.state.undoMessageVisible)
+    }
+
+    @Test
+    fun helpRequestStillWorksAfterRejectingProlongedTimeAdaptation() {
+        val repository = InMemoryKnowledgeRepository()
+        val engine = ExtendedMapeKEngine(repository)
+        val ar02 = engine.processAccessEvent(AdaptiveInteractionEventType.PROLONGED_TIME) as AdaptationEngineResult.Applied
+        val undone = engine.undo(ar02.plan, ar02.state)
+
+        val result = engine.processAccessEvent(
+            eventType = AdaptiveInteractionEventType.HELP_REQUESTED,
+            currentState = undone.copy(contextualHelpVisible = false)
+        )
+
+        val applied = result as AdaptationEngineResult.Applied
+        assertEquals(AdaptationRuleId.AR05, applied.plan.ruleId)
+        assertTrue(applied.state.contextualHelpVisible)
+        assertFalse(applied.state.undoMessageVisible)
     }
 
     @Test
@@ -152,7 +188,8 @@ class ExtendedMapeKEngineTest {
 private fun ExtendedMapeKEngine.processAccessEvent(
     eventType: AdaptiveInteractionEventType,
     backCountInTask: Int = 0,
-    fieldErrorCount: Int = 0
+    fieldErrorCount: Int = 0,
+    currentState: AdaptiveUiState = AdaptiveUiState()
 ): AdaptationEngineResult {
     return process(
         event = AdaptiveInteractionEvent(
@@ -168,6 +205,6 @@ private fun ExtendedMapeKEngine.processAccessEvent(
             backCountInTask = backCountInTask,
             fieldErrorCount = fieldErrorCount
         ),
-        currentState = AdaptiveUiState()
+        currentState = currentState
     )
 }

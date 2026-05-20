@@ -676,10 +676,13 @@ fun AppNavHost(
                             scope.launch { AppContainer.experimentPreferences.saveSession(next) }
                             log(next.logEntry(InteractionEventType.CONDITION_STARTED, screenId = ScreenId.HOME, message = "${next.currentCondition} condition started."))
                             MapeKLog.experiment("moving to next condition next=${next.currentCondition}")
-                            navController.navigate(AppRoute.Home.route) {
-                                popUpTo(AppRoute.Home.route) { inclusive = false }
-                                launchSingleTop = true
-                                restoreState = false
+                            val returnedToHome = navController.popBackStack(AppRoute.Home.route, inclusive = false)
+                            if (!returnedToHome) {
+                                navController.navigate(AppRoute.Home.route) {
+                                    popUpTo(AppRoute.ExperimentSetup.route) { inclusive = false }
+                                    launchSingleTop = true
+                                    restoreState = false
+                                }
                             }
                         }
                     )

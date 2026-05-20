@@ -41,7 +41,7 @@ class SelfAdaptiveT1InstrumentedTest {
         composeRule.startGroupBSession("UI_AR02_001")
         openT1CodeStep()
 
-        composeRule.waitUntil(timeoutMillis = 15_000) {
+        composeRule.waitUntil(timeoutMillis = 25_000) {
             composeRule.onAllNodesWithText("Cambio aplicado").fetchSemanticsNodes().isNotEmpty()
         }
 

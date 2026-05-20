@@ -14,12 +14,14 @@ import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.test.espresso.Espresso.pressBack
 import androidx.test.ext.junit.rules.ActivityScenarioRule
+import com.angelotacoj.self_adaptive_health_app.adaptive.domain.engine.AdaptiveTiming
 import com.angelotacoj.self_adaptive_health_app.di.AppContainer
 import kotlinx.coroutines.runBlocking
 
 typealias MainComposeRule = AndroidComposeTestRule<ActivityScenarioRule<MainActivity>, MainActivity>
 
 fun MainComposeRule.resetResearchData() {
+    AdaptiveTiming.prolongedTimeDetectionEnabled = true
     val context = activity.applicationContext
     AppContainer.init(context)
     runBlocking {
@@ -36,6 +38,14 @@ fun MainComposeRule.startGroupBSession(participantCode: String) {
     onNodeWithText("Grupo B").performScrollTo().performClick()
     onNodeWithText("Iniciar sesión experimental").performScrollTo().performClick()
     onNodeWithText("SELF_ADAPTIVE_UI").assertExistsCompat()
+}
+
+fun MainComposeRule.startGroupASession(participantCode: String) {
+    onNodeWithText("Código de participante").performTextClearance()
+    onNodeWithText("Código de participante").performTextInput(participantCode)
+    onNodeWithText("Grupo A").performScrollTo().performClick()
+    onNodeWithText("Iniciar sesión experimental").performScrollTo().performClick()
+    onNodeWithText("STATIC_UI").assertExistsCompat()
 }
 
 fun MainComposeRule.openTaskByTitle(title: String) {

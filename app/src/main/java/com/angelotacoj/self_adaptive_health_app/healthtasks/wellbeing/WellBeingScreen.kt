@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.activity.compose.BackHandler
 import kotlinx.coroutines.delay
+import com.angelotacoj.self_adaptive_health_app.adaptive.domain.engine.AdaptiveTiming
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.AdaptiveInteractionEventType
 import com.angelotacoj.self_adaptive_health_app.adaptive.presentation.components.AdaptiveConfirmationDialog
 import com.angelotacoj.self_adaptive_health_app.adaptive.presentation.components.AdaptiveSuggestionCard
@@ -41,8 +42,10 @@ fun WellBeingScreen(
     }
     LaunchedEffect(screenId) {
         onLog(InteractionEventType.SCREEN_ENTERED, screenId, "Well-being step entered: $screenId.")
-        delay(120_000)
-        onAdaptiveEvent(AdaptiveInteractionEventType.PROLONGED_TIME, screenId)
+        if (AdaptiveTiming.prolongedTimeDetectionEnabled) {
+            delay(120_000)
+            onAdaptiveEvent(AdaptiveInteractionEventType.PROLONGED_TIME, screenId)
+        }
     }
 
     ScreenContainer(

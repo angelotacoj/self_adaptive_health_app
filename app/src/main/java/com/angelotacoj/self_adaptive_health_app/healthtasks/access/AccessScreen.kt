@@ -15,12 +15,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import com.angelotacoj.self_adaptive_health_app.adaptive.domain.engine.AdaptiveTiming
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.AdaptiveInteractionEventType
 import com.angelotacoj.self_adaptive_health_app.adaptive.presentation.components.AdaptiveConfirmationDialog
 import com.angelotacoj.self_adaptive_health_app.adaptive.presentation.components.AdaptiveSuggestionCard
@@ -61,8 +63,10 @@ fun AccessScreen(
 
     LaunchedEffect(screenId) {
         onLog(InteractionEventType.SCREEN_ENTERED, screenId, "Access step entered: $screenId.")
-        delay(10_000)
-        onAdaptiveEvent(AdaptiveInteractionEventType.PROLONGED_TIME, screenId)
+        if (AdaptiveTiming.prolongedTimeDetectionEnabled) {
+            delay(10_000)
+            onAdaptiveEvent(AdaptiveInteractionEventType.PROLONGED_TIME, screenId)
+        }
     }
 
     LaunchedEffect(state.errorField, state.step) {
@@ -76,6 +80,7 @@ fun AccessScreen(
 
     if (state.showHelpDialog) {
         AlertDialog(
+            containerColor = Color.White,
             onDismissRequest = { onAction(AccessAction.DismissHelpClicked) },
             title = { Text("Ayuda para acceder") },
             text = {

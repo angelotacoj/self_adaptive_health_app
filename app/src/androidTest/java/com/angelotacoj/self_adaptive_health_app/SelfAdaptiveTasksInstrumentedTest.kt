@@ -116,7 +116,7 @@ class SelfAdaptiveTasksInstrumentedTest {
         }
         composeRule.onNodeWithText("Confirmar").performClick()
 
-        composeRule.waitUntil(timeoutMillis = 15_000) {
+        composeRule.waitUntil(timeoutMillis = 25_000) {
             composeRule.onAllNodesWithText("Revisar antes de guardar").fetchSemanticsNodes().isNotEmpty()
         }
         composeRule.onNodeWithText("Revisar antes de guardar").assertIsDisplayed()

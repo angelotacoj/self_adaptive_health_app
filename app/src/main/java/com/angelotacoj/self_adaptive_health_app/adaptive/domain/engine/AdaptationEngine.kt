@@ -180,10 +180,10 @@ class ExtendedMapeKEngine(
             ObservedInteractionSignal.OIS03_CONFIRMATION_PAUSE in signals -> AdaptationRuleId.AR03
             ObservedInteractionSignal.OIS08_SENSITIVE_ACTION in signals -> AdaptationRuleId.AR08
             ObservedInteractionSignal.OIS06_FIELD_ERROR in signals -> AdaptationRuleId.AR06
+            ObservedInteractionSignal.OIS05_HELP_REQUEST in signals -> AdaptationRuleId.AR05
             ObservedInteractionSignal.OIS04_BACKTRACKING in signals -> AdaptationRuleId.AR04
             ObservedInteractionSignal.OIS01_TOUCH_ERRORS in signals -> AdaptationRuleId.AR01
             ObservedInteractionSignal.OIS02_PROLONGED_TIME in signals -> AdaptationRuleId.AR02
-            ObservedInteractionSignal.OIS05_HELP_REQUEST in signals -> AdaptationRuleId.AR05
             ObservedInteractionSignal.OIS07_ADAPTATION_REJECTED in signals -> AdaptationRuleId.AR07
             else -> {
                 MapeKLog.stage("PLANNER", "AR=NONE because OIS=${signals.names()}")
@@ -261,7 +261,11 @@ class ExtendedMapeKEngine(
         }
         MapeKLog.stage("STATE", "AdaptiveUiState changed by AR=${plan.ruleId}; Compose observes StateFlow and recomposes")
         MapeKLog.state("adaptiveUiState updated textScale=${state.textScale} contextualHelpVisible=${state.contextualHelpVisible}")
-        return state.copy(lastAppliedAdaptation = AppliedAdaptation(plan.ruleId, plan.modifications), undoMessageVisible = true)
+        val undoable = plan.ruleId in setOf(AdaptationRuleId.AR01, AdaptationRuleId.AR02, AdaptationRuleId.AR04)
+        return state.copy(
+            lastAppliedAdaptation = if (undoable) AppliedAdaptation(plan.ruleId, plan.modifications) else currentState.lastAppliedAdaptation,
+            undoMessageVisible = undoable
+        )
     }
 
     override fun undo(plan: AdaptationPlan, currentState: AdaptiveUiState): AdaptiveUiState {
