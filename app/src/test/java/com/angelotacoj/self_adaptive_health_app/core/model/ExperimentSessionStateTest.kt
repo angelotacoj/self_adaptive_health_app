@@ -9,26 +9,62 @@ import org.junit.Test
 
 class ExperimentSessionStateTest {
     @Test
-    fun groupACompletesExactlyEightTasks_staticThenSelfAdaptive() {
-        val finished = completeEightTasks(ExperimentGroup.GroupA)
+    fun groupACompletesExactlyTenTasks_staticThenSelfAdaptive() {
+        val finished = completeTenTasks(ExperimentGroup.GroupA)
 
-        assertEquals(4, finished.completedTasksByCondition.getValue(ExperimentCondition.STATIC_UI).size)
-        assertEquals(4, finished.completedTasksByCondition.getValue(ExperimentCondition.SELF_ADAPTIVE_UI).size)
-        assertEquals(8, finished.completedTasksByCondition.values.sumOf { it.size })
+        assertEquals(5, finished.completedTasksByCondition.getValue(ExperimentCondition.STATIC_UI).size)
+        assertEquals(5, finished.completedTasksByCondition.getValue(ExperimentCondition.SELF_ADAPTIVE_UI).size)
+        assertEquals(10, finished.completedTasksByCondition.values.sumOf { it.size })
         assertFalse(finished.isSessionActive)
     }
 
     @Test
-    fun groupBCompletesExactlyEightTasks_selfAdaptiveThenStatic() {
-        val finished = completeEightTasks(ExperimentGroup.GroupB)
+    fun groupBCompletesExactlyTenTasks_selfAdaptiveThenStatic() {
+        val finished = completeTenTasks(ExperimentGroup.GroupB)
 
-        assertEquals(4, finished.completedTasksByCondition.getValue(ExperimentCondition.SELF_ADAPTIVE_UI).size)
-        assertEquals(4, finished.completedTasksByCondition.getValue(ExperimentCondition.STATIC_UI).size)
-        assertEquals(8, finished.completedTasksByCondition.values.sumOf { it.size })
+        assertEquals(5, finished.completedTasksByCondition.getValue(ExperimentCondition.SELF_ADAPTIVE_UI).size)
+        assertEquals(5, finished.completedTasksByCondition.getValue(ExperimentCondition.STATIC_UI).size)
+        assertEquals(10, finished.completedTasksByCondition.values.sumOf { it.size })
         assertFalse(finished.isSessionActive)
     }
 
-    private fun completeEightTasks(group: ExperimentGroup): ExperimentSessionState {
+    @Test
+    fun completingSameTaskTwiceInSameConditionDoesNotIncreaseCount() {
+        val dataSet = FakeHealthDataSource().getDataSet(ExperimentGroup.GroupA)
+        var state = ExperimentSessionState(
+            participantCode = "UNIT_DUPLICATE",
+            group = ExperimentGroup.GroupA,
+            conditionOrder = ExperimentGroup.GroupA.conditionOrder(),
+            currentDataSet = dataSet
+        )
+
+        state = state.startTask(TaskId.T1_ACCESS).finishCurrentTask()
+        state = state.startTask(TaskId.T1_ACCESS).finishCurrentTask()
+
+        assertEquals(1, state.completedTasksByCondition.getValue(ExperimentCondition.STATIC_UI).size)
+    }
+
+    @Test
+    fun movingToSecondConditionKeepsNewConditionTasksPending() {
+        val dataSet = FakeHealthDataSource().getDataSet(ExperimentGroup.GroupA)
+        var state = ExperimentSessionState(
+            participantCode = "UNIT_SECOND_CONDITION",
+            group = ExperimentGroup.GroupA,
+            conditionOrder = ExperimentGroup.GroupA.conditionOrder(),
+            currentDataSet = dataSet
+        )
+
+        taskSet.forEach { taskId ->
+            state = state.startTask(taskId).finishCurrentTask()
+        }
+        state = state.moveToNextCondition()
+
+        assertEquals(5, state.completedTasksByCondition.getValue(ExperimentCondition.STATIC_UI).size)
+        assertEquals(emptySet<TaskId>(), state.completedTasksByCondition[ExperimentCondition.SELF_ADAPTIVE_UI].orEmpty())
+        assertEquals(ExperimentCondition.SELF_ADAPTIVE_UI, state.currentCondition)
+    }
+
+    private fun completeTenTasks(group: ExperimentGroup): ExperimentSessionState {
         val dataSet = FakeHealthDataSource().getDataSet(group)
         var state = ExperimentSessionState(
             participantCode = "UNIT_${group.name}",
@@ -52,8 +88,9 @@ class ExperimentSessionStateTest {
 
     private val taskSet = listOf(
         TaskId.T1_ACCESS,
-        TaskId.T2_WELL_BEING,
-        TaskId.T3_REMINDER,
-        TaskId.T4_SUMMARY
+        TaskId.T2_APPOINTMENT,
+        TaskId.T3_WELL_BEING,
+        TaskId.T4_REMINDER,
+        TaskId.T5_SUMMARY
     )
 }

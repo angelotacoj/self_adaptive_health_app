@@ -193,9 +193,10 @@ private fun ConditionTaskStatus(
     Text(text = title, fontWeight = FontWeight.SemiBold)
     listOf(
         TaskId.T1_ACCESS,
-        TaskId.T2_WELL_BEING,
-        TaskId.T3_REMINDER,
-        TaskId.T4_SUMMARY
+        TaskId.T2_APPOINTMENT,
+        TaskId.T3_WELL_BEING,
+        TaskId.T4_REMINDER,
+        TaskId.T5_SUMMARY
     ).forEach { task ->
         val status = if (task in completed) "Completada" else "Pendiente"
         Text(text = "${task.label}: $status")

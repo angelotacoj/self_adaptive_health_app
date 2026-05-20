@@ -7,7 +7,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
@@ -21,6 +28,7 @@ import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.AdaptiveIn
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.AdaptiveInteractionEventType
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.ExperimentCondition
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.TaskInteractionState
+import com.angelotacoj.self_adaptive_health_app.adaptive.presentation.components.AdaptiveSnackbar
 import com.angelotacoj.self_adaptive_health_app.adaptive.presentation.state.AdaptiveUiState
 import com.angelotacoj.self_adaptive_health_app.core.logging.DebugLogEntry
 import com.angelotacoj.self_adaptive_health_app.core.logging.ExperimentLogger
@@ -59,6 +67,9 @@ import com.angelotacoj.self_adaptive_health_app.healthtasks.summary.SummaryViewM
 import com.angelotacoj.self_adaptive_health_app.healthtasks.wellbeing.WellBeingAction
 import com.angelotacoj.self_adaptive_health_app.healthtasks.wellbeing.WellBeingScreen
 import com.angelotacoj.self_adaptive_health_app.healthtasks.wellbeing.WellBeingViewModel
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import com.angelotacoj.self_adaptive_health_app.core.ui.InstructionCard
 import com.angelotacoj.self_adaptive_health_app.core.ui.LargePrimaryButton
 import com.angelotacoj.self_adaptive_health_app.core.ui.ScreenContainer
@@ -76,6 +87,7 @@ fun AppNavHost(
     var sessionState by remember { mutableStateOf<ExperimentSessionState?>(null) }
     val adaptiveUiStateFlow = remember { MutableStateFlow(AdaptiveUiState()) }
     val adaptiveUiState by adaptiveUiStateFlow.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
     var pendingPlan by remember { mutableStateOf<AdaptationPlan?>(null) }
     var lastAppliedPlan by remember { mutableStateOf<AdaptationPlan?>(null) }
     var existingSetupSession by remember { mutableStateOf<ExperimentSessionState?>(null) }
@@ -87,7 +99,25 @@ fun AppNavHost(
     val knowledge = AppContainer.knowledgeRepository
     val engine = remember { ExtendedMapeKEngine(knowledge) }
 
+    LaunchedEffect(adaptiveUiState.snackbarMessage) {
+        adaptiveUiState.snackbarMessage?.let { message ->
+            snackbarHostState.showSnackbar(
+                message = message,
+                duration = SnackbarDuration.Short
+            )
+            adaptiveUiStateFlow.value = adaptiveUiStateFlow.value.copy(snackbarMessage = null)
+        }
+    }
+
     fun activeSession(): ExperimentSessionState? = sessionState?.takeIf { it.isSessionActive }
+
+    fun adaptiveStateFor(session: ExperimentSessionState): AdaptiveUiState {
+        return if (session.currentCondition == ExperimentCondition.SELF_ADAPTIVE_UI) {
+            adaptiveUiState.copy(isAdaptiveMode = true)
+        } else {
+            AdaptiveUiState()
+        }
+    }
 
     fun log(entry: DebugLogEntry) {
         logger.log(entry)
@@ -147,7 +177,7 @@ fun AppNavHost(
         sessionState = started
         existingSetupSession = null
         pendingSetupSession = null
-        adaptiveUiStateFlow.value = AdaptiveUiState()
+        adaptiveUiStateFlow.value = AdaptiveUiState(isAdaptiveMode = started.currentCondition == ExperimentCondition.SELF_ADAPTIVE_UI)
         pendingPlan = null
         lastAppliedPlan = null
         engine.clearEvents()
@@ -178,6 +208,7 @@ fun AppNavHost(
         val restored = restoreActiveSession()
         if (restored != null) {
             sessionState = restored
+            adaptiveUiStateFlow.value = AdaptiveUiState(isAdaptiveMode = restored.currentCondition == ExperimentCondition.SELF_ADAPTIVE_UI)
             MapeKLog.experiment("active session restored session=${restored.sessionId} condition=${restored.currentCondition}")
         }
     }
@@ -218,7 +249,12 @@ fun AppNavHost(
         return when (result) {
             AdaptationEngineResult.NoAdaptation -> false
             is AdaptationEngineResult.Applied -> {
-                adaptiveUiStateFlow.value = result.state
+                val snackbarMessage = when (result.plan.ruleId.name) {
+                    "AR02" -> "He aumentado el tamaño del texto para ayudarle a leer mejor."
+                    "AR06" -> "He activado ayudas visuales para corregir el error."
+                    else -> "He ajustado la interfaz para ayudarle."
+                }
+                adaptiveUiStateFlow.value = result.state.copy(isAdaptiveMode = true, snackbarMessage = snackbarMessage)
                 lastAppliedPlan = result.plan
                 MapeKLog.stage("EXECUTOR", "undo target stored AR=${result.plan.ruleId} source=AUTO_APPLIED")
                 MapeKLog.state("adaptiveUiState updated textScale=${result.state.textScale} contextualHelpVisible=${result.state.contextualHelpVisible}")
@@ -234,7 +270,7 @@ fun AppNavHost(
             }
             is AdaptationEngineResult.RequiresUserValidation -> {
                 pendingPlan = result.plan
-                adaptiveUiStateFlow.value = result.state
+                adaptiveUiStateFlow.value = result.state.copy(isAdaptiveMode = true)
                 log(session.logEntry(InteractionEventType.ADAPTATION_SUGGESTED, taskId, screenId, "Suggested ${result.plan.ruleId}."))
                 scope.launch {
                     knowledge.saveAdaptationEvent(result.plan.toEntity(session, applied = false, userDecision = null))
@@ -251,7 +287,7 @@ fun AppNavHost(
     fun applyPendingAdaptation() {
         val session = activeSession() ?: return
         val plan = pendingPlan ?: return
-        adaptiveUiStateFlow.value = engine.apply(plan, adaptiveUiState)
+        adaptiveUiStateFlow.value = engine.apply(plan, adaptiveUiState).copy(isAdaptiveMode = true)
         lastAppliedPlan = plan
         MapeKLog.stage("USER_VALIDATION", "validation decision=APPLY AR=${plan.ruleId}")
         log(session.logEntry(InteractionEventType.ADAPTATION_APPLIED, plan.taskId, plan.screenId, "Applied ${plan.ruleId}."))
@@ -271,9 +307,10 @@ fun AppNavHost(
         val plan = pendingPlan ?: return
         engine.reject(plan)
         adaptiveUiStateFlow.value = adaptiveUiState.copy(
+            isAdaptiveMode = true,
             pendingAdaptation = null,
             contextualHelpVisible = true,
-            contextualHelpMessage = "Understood. I will not show this suggestion again during this task."
+            contextualHelpMessage = "Entendido. No volveré a mostrar esta sugerencia durante esta tarea."
         )
         log(session.logEntry(InteractionEventType.ADAPTATION_REJECTED, plan.taskId, plan.screenId, "Rejected ${plan.ruleId}."))
         scope.launch {
@@ -292,7 +329,7 @@ fun AppNavHost(
             return
         }
         MapeKLog.stage("EXECUTOR", "undo requested AR=${plan.ruleId} currentTextScale=${adaptiveUiState.textScale}")
-        adaptiveUiStateFlow.value = engine.undo(plan, adaptiveUiState)
+        adaptiveUiStateFlow.value = engine.undo(plan, adaptiveUiState).copy(isAdaptiveMode = true)
         log(session.logEntry(InteractionEventType.ADAPTATION_UNDONE, plan.taskId, plan.screenId, "Undid ${plan.ruleId}."))
         scope.launch {
             knowledge.saveUserDecision(plan.toDecisionEntity(session, "UNDO"))
@@ -310,11 +347,11 @@ fun AppNavHost(
     fun completeTask(taskId: TaskId, screenId: ScreenId, message: String) {
         val session = activeSession() ?: return
         val completedTaskState = session.finishCurrentTask()
-        val requiredTasks = setOf(TaskId.T1_ACCESS, TaskId.T2_WELL_BEING, TaskId.T3_REMINDER, TaskId.T4_SUMMARY)
+        val requiredTasks = setOf(TaskId.T1_ACCESS, TaskId.T2_APPOINTMENT, TaskId.T3_WELL_BEING, TaskId.T4_REMINDER, TaskId.T5_SUMMARY)
         val completedForCondition = completedTaskState.completedTasksByCondition[session.currentCondition].orEmpty()
         val conditionDone = completedForCondition.containsAll(requiredTasks)
         val totalCompleted = completedTaskState.completedTasksByCondition.values.sumOf { it.size }
-        val finalDone = conditionDone && totalCompleted >= 8
+        val finalDone = conditionDone && totalCompleted >= 10
         sessionState = completedTaskState
         log(session.logEntry(InteractionEventType.TASK_COMPLETED, taskId, screenId, message))
         if (conditionDone) {
@@ -329,7 +366,7 @@ fun AppNavHost(
                 endedAt = System.currentTimeMillis()
             )
             AppContainer.experimentPreferences.saveSession(completedTaskState)
-            MapeKLog.experiment("total completed tasks=${AppContainer.database.experimentDao().getTotalCompletedTaskCount(session.sessionId)}/8")
+            MapeKLog.experiment("total completed tasks=${AppContainer.database.experimentDao().getTotalCompletedTaskCount(session.sessionId)}/10")
         }
         if (conditionDone && !finalDone && completedTaskState.currentConditionIndex < completedTaskState.conditionOrder.lastIndex) {
             conditionTransitionState = completedTaskState
@@ -343,7 +380,7 @@ fun AppNavHost(
                 AppContainer.database.experimentDao().markParticipantSessionEnded(finished.sessionId, System.currentTimeMillis(), true)
                 AppContainer.experimentPreferences.saveSession(finished)
             }
-            MapeKLog.experiment("session completed total=8/8")
+            MapeKLog.experiment("session completed total=10/10")
             navController.navigate(AppRoute.SessionCompleted.route)
         }
     }
@@ -374,18 +411,19 @@ fun AppNavHost(
         }
     }
 
-    NavHost(
-        navController = navController,
-        startDestination = AppRoute.ExperimentSetup.route,
-        modifier = Modifier
-    ) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        NavHost(
+            navController = navController,
+            startDestination = AppRoute.ExperimentSetup.route,
+            modifier = Modifier.fillMaxSize()
+        ) {
         composable(AppRoute.ExperimentSetup.route) {
             val viewModel: ExperimentSetupViewModel = viewModel()
             val state by viewModel.state.collectAsStateWithLifecycle()
             ExperimentSetupScreen(
                 state = state,
                 existingSessionMessage = existingSetupSession?.let {
-                    "Ya existe una sesión para ${it.participantCode}. Condición actual: ${it.currentCondition}. Tareas completadas: ${it.completedTasksByCondition.values.sumOf { tasks -> tasks.size }}/8."
+                    "Ya existe una sesión para ${it.participantCode}. Condición actual: ${it.currentCondition}. Tareas completadas: ${it.completedTasksByCondition.values.sumOf { tasks -> tasks.size }}/10."
                 },
                 onAction = viewModel::onAction,
                 onStartSession = { newSession ->
@@ -410,6 +448,7 @@ fun AppNavHost(
                 onContinueExistingSession = {
                     existingSetupSession?.let {
                         sessionState = it
+                        adaptiveUiStateFlow.value = AdaptiveUiState(isAdaptiveMode = it.currentCondition == ExperimentCondition.SELF_ADAPTIVE_UI)
                         scope.launch { AppContainer.experimentPreferences.saveSession(it) }
                         existingSetupSession = null
                         pendingSetupSession = null
@@ -455,14 +494,17 @@ fun AppNavHost(
                     onNavigateToAccess = {
                         startTaskIfAllowed(session, TaskId.T1_ACCESS, AppRoute.Access.route, "T1 access started.", navController)
                     },
+                    onNavigateToAppointment = {
+                        startTaskIfAllowed(session, TaskId.T2_APPOINTMENT, AppRoute.Appointments.route, "T2 appointment started.", navController)
+                    },
                     onNavigateToWellBeing = {
-                        startTaskIfAllowed(session, TaskId.T2_WELL_BEING, AppRoute.WellBeing.route, "T2 started.", navController)
+                        startTaskIfAllowed(session, TaskId.T3_WELL_BEING, AppRoute.WellBeing.route, "T3 well-being started.", navController)
                     },
                     onNavigateToReminders = {
-                        startTaskIfAllowed(session, TaskId.T3_REMINDER, AppRoute.Reminders.route, "T3 started.", navController)
+                        startTaskIfAllowed(session, TaskId.T4_REMINDER, AppRoute.Reminders.route, "T4 reminder started.", navController)
                     },
                     onNavigateToSummary = {
-                        startTaskIfAllowed(session, TaskId.T4_SUMMARY, AppRoute.Summary.route, "T4 started.", navController)
+                        startTaskIfAllowed(session, TaskId.T5_SUMMARY, AppRoute.Summary.route, "T5 summary started.", navController)
                     },
                     onNavigateToDebugLogs = {
                         log(session.logEntry(InteractionEventType.BUTTON_CLICKED, screenId = ScreenId.HOME, message = "Debug logs opened."))
@@ -503,10 +545,12 @@ fun AppNavHost(
                 val viewModel: AccessViewModel = viewModel()
                 viewModel.start(session.currentDataSet.accessCredentials)
                 val state by viewModel.state.collectAsStateWithLifecycle()
-                LaunchedEffect(adaptiveUiState) { viewModel.onAction(AccessAction.AdaptiveStateChanged(adaptiveUiState)) }
+                LaunchedEffect(adaptiveUiState, session.currentCondition) {
+                    viewModel.onAction(AccessAction.AdaptiveStateChanged(adaptiveStateFor(session)))
+                }
                 state?.let { state ->
                     AccessScreen(
-                        state = state,
+                        state = state.copy(adaptiveUiState = adaptiveStateFor(session)),
                         onAction = viewModel::onAction,
                         onLog = { type, screen, message -> log(session.logEntry(type, TaskId.T1_ACCESS, screen, message)) },
                         onFieldError = { screen, fieldId, errorType ->
@@ -546,22 +590,26 @@ fun AppNavHost(
                 val viewModel: AppointmentViewModel = viewModel()
                 viewModel.start(session.currentDataSet.appointment, session.currentDataSet.appointmentOptions)
                 val state by viewModel.state.collectAsStateWithLifecycle()
-                LaunchedEffect(adaptiveUiState) { viewModel.onAction(AppointmentAction.AdaptiveStateChanged(adaptiveUiState)) }
+                LaunchedEffect(adaptiveUiState, session.currentCondition) {
+                    viewModel.onAction(AppointmentAction.AdaptiveStateChanged(adaptiveStateFor(session)))
+                }
                 state?.let { state ->
                     AppointmentScreen(
-                        state = state,
+                        state = state.copy(adaptiveUiState = adaptiveStateFor(session)),
                         onAction = viewModel::onAction,
                         onLog = { type, screen, message ->
-                            log(session.logEntry(type, TaskId.T1_APPOINTMENT, screen, message))
+                            log(session.logEntry(type, TaskId.T2_APPOINTMENT, screen, message))
                         },
-                        onAdaptiveEvent = { type, screen -> processAdaptiveEvent(TaskId.T1_APPOINTMENT, screen, type) },
+                        onAdaptiveEvent = { type, screen -> processAdaptiveEvent(TaskId.T2_APPOINTMENT, screen, type) },
                         onApplyAdaptation = ::applyPendingAdaptation,
                         onRejectAdaptation = ::rejectPendingAdaptation,
                         onUndoAdaptation = ::undoAdaptation,
                         onHideHelp = ::hideHelp,
+                        onTaskCompleted = {
+                            completeTask(TaskId.T2_APPOINTMENT, ScreenId.APPOINTMENT_COMPLETED, "T2 appointment completed.")
+                        },
                         onExit = { navController.popBackStack(AppRoute.Home.route, inclusive = false) }
-                    )
-                }
+                    )                }
             }
         }
 
@@ -571,19 +619,21 @@ fun AppNavHost(
                 val viewModel: WellBeingViewModel = viewModel()
                 viewModel.start(session.currentDataSet.wellBeingRecord)
                 val state by viewModel.state.collectAsStateWithLifecycle()
-                LaunchedEffect(adaptiveUiState) { viewModel.onAction(WellBeingAction.AdaptiveStateChanged(adaptiveUiState)) }
+                LaunchedEffect(adaptiveUiState, session.currentCondition) {
+                    viewModel.onAction(WellBeingAction.AdaptiveStateChanged(adaptiveStateFor(session)))
+                }
                 state?.let { state ->
                     WellBeingScreen(
-                        state = state,
+                        state = state.copy(adaptiveUiState = adaptiveStateFor(session)),
                         onAction = viewModel::onAction,
                         onLog = { type, screen, message ->
                             if (type == InteractionEventType.TASK_COMPLETED) {
-                                completeTask(TaskId.T2_WELL_BEING, screen, message)
+                                completeTask(TaskId.T3_WELL_BEING, screen, message)
                             } else {
-                                log(session.logEntry(type, TaskId.T2_WELL_BEING, screen, message))
+                                log(session.logEntry(type, TaskId.T3_WELL_BEING, screen, message))
                             }
                         },
-                        onAdaptiveEvent = { type, screen -> processAdaptiveEvent(TaskId.T2_WELL_BEING, screen, type) },
+                        onAdaptiveEvent = { type, screen -> processAdaptiveEvent(TaskId.T3_WELL_BEING, screen, type) },
                         onApplyAdaptation = ::applyPendingAdaptation,
                         onRejectAdaptation = ::rejectPendingAdaptation,
                         onUndoAdaptation = ::undoAdaptation,
@@ -600,19 +650,21 @@ fun AppNavHost(
                 val viewModel: ReminderViewModel = viewModel()
                 viewModel.start(session.currentDataSet.reminder)
                 val state by viewModel.state.collectAsStateWithLifecycle()
-                LaunchedEffect(adaptiveUiState) { viewModel.onAction(ReminderAction.AdaptiveStateChanged(adaptiveUiState)) }
+                LaunchedEffect(adaptiveUiState, session.currentCondition) {
+                    viewModel.onAction(ReminderAction.AdaptiveStateChanged(adaptiveStateFor(session)))
+                }
                 state?.let { state ->
                     ReminderScreen(
-                        state = state,
+                        state = state.copy(adaptiveUiState = adaptiveStateFor(session)),
                         onAction = viewModel::onAction,
                         onLog = { type, screen, message ->
                             if (type == InteractionEventType.TASK_COMPLETED) {
-                                completeTask(TaskId.T3_REMINDER, screen, message)
+                                completeTask(TaskId.T4_REMINDER, screen, message)
                             } else {
-                                log(session.logEntry(type, TaskId.T3_REMINDER, screen, message))
+                                log(session.logEntry(type, TaskId.T4_REMINDER, screen, message))
                             }
                         },
-                        onAdaptiveEvent = { type, screen -> processAdaptiveEvent(TaskId.T3_REMINDER, screen, type) },
+                        onAdaptiveEvent = { type, screen -> processAdaptiveEvent(TaskId.T4_REMINDER, screen, type) },
                         onApplyAdaptation = ::applyPendingAdaptation,
                         onRejectAdaptation = ::rejectPendingAdaptation,
                         onUndoAdaptation = ::undoAdaptation,
@@ -629,19 +681,21 @@ fun AppNavHost(
                 val viewModel: SummaryViewModel = viewModel()
                 viewModel.start(session.currentDataSet)
                 val state by viewModel.state.collectAsStateWithLifecycle()
-                LaunchedEffect(adaptiveUiState) { viewModel.onAction(SummaryAction.AdaptiveStateChanged(adaptiveUiState)) }
+                LaunchedEffect(adaptiveUiState, session.currentCondition) {
+                    viewModel.onAction(SummaryAction.AdaptiveStateChanged(adaptiveStateFor(session)))
+                }
                 state?.let { state ->
                     SummaryScreen(
-                        state = state,
+                        state = state.copy(adaptiveUiState = adaptiveStateFor(session)),
                         onAction = viewModel::onAction,
                         onLog = { type, screen, message ->
                             if (type == InteractionEventType.TASK_COMPLETED) {
-                                completeTask(TaskId.T4_SUMMARY, screen, message)
+                                completeTask(TaskId.T5_SUMMARY, screen, message)
                             } else {
-                                log(session.logEntry(type, TaskId.T4_SUMMARY, screen, message))
+                                log(session.logEntry(type, TaskId.T5_SUMMARY, screen, message))
                             }
                         },
-                        onAdaptiveEvent = { type, screen -> processAdaptiveEvent(TaskId.T4_SUMMARY, screen, type) },
+                        onAdaptiveEvent = { type, screen -> processAdaptiveEvent(TaskId.T5_SUMMARY, screen, type) },
                         onApplyAdaptation = ::applyPendingAdaptation,
                         onRejectAdaptation = ::rejectPendingAdaptation,
                         onUndoAdaptation = ::undoAdaptation,
@@ -656,25 +710,25 @@ fun AppNavHost(
             val completed = conditionTransitionState ?: activeSession() ?: returnToSetup(navController)
             if (completed != null) {
                 ScreenContainer(
-                    title = "Condición completada",
-                    subtitle = "Ha completado las tareas de esta condición.",
+                    title = "Bloque de tareas completado",
+                    subtitle = "Ha completado las tareas de esta etapa.",
                     showNotice = false
                 ) {
                     InstructionCard(
-                        "Siguiente etapa",
-                        listOf("Ahora continuará con la siguiente condición de la sesión experimental.")
+                        "Administrar cuestionario",
+                        listOf("Antes de continuar, el investigador debe aplicar el cuestionario UEQ-S correspondiente a la interfaz que acaba de usar.")
                     )
                     LargePrimaryButton(
-                        "Continuar con la siguiente condición",
+                        "UEQ-S completado, continuar",
                         {
                             val next = completed.moveToNextCondition()
                             sessionState = next
                             conditionTransitionState = null
-                            adaptiveUiStateFlow.value = AdaptiveUiState()
+                            adaptiveUiStateFlow.value = AdaptiveUiState(isAdaptiveMode = next.currentCondition == ExperimentCondition.SELF_ADAPTIVE_UI)
                             pendingPlan = null
                             lastAppliedPlan = null
                             scope.launch { AppContainer.experimentPreferences.saveSession(next) }
-                            log(next.logEntry(InteractionEventType.CONDITION_STARTED, screenId = ScreenId.HOME, message = "${next.currentCondition} condition started."))
+                            log(next.logEntry(InteractionEventType.CONDITION_STARTED, screenId = ScreenId.HOME, message = "Stage ${next.currentConditionIndex + 1} started."))
                             MapeKLog.experiment("moving to next condition next=${next.currentCondition}")
                             val returnedToHome = navController.popBackStack(AppRoute.Home.route, inclusive = false)
                             if (!returnedToHome) {
@@ -693,13 +747,16 @@ fun AppNavHost(
         composable(AppRoute.SessionCompleted.route) {
             val completed = sessionCompletedState ?: sessionState
             ScreenContainer(
-                title = "Sesión completada",
+                title = "Sesión experimental completada",
                 subtitle = "Sesión experimental completada.",
                 showNotice = false
             ) {
                 InstructionCard(
                     "Gracias",
-                    listOf("Ha completado las 8 tareas de la sesión experimental.")
+                    listOf(
+                        "El participante completó ambos bloques de tareas.",
+                        "Ahora el investigador puede aplicar la entrevista o formulario cualitativo final."
+                    )
                 )
                 LargePrimaryButton(
                     "Panel del investigador",
@@ -708,7 +765,7 @@ fun AppNavHost(
                 if (completed != null) {
                     InstructionCard(
                         "Resumen",
-                        listOf("Total completado: ${completed.completedTasksByCondition.values.sumOf { it.size }}/8")
+                        listOf("Total completado: ${completed.completedTasksByCondition.values.sumOf { it.size }}/10")
                     )
                 }
             }
@@ -759,6 +816,16 @@ fun AppNavHost(
                 onBack = { navController.popBackStack() }
             )
         }
+        }
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .imePadding()
+                .padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+            snackbar = { data -> AdaptiveSnackbar(data) }
+        )
     }
 }
 

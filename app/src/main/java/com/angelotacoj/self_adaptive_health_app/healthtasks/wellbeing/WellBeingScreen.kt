@@ -43,8 +43,8 @@ fun WellBeingScreen(
     LaunchedEffect(screenId) {
         onLog(InteractionEventType.SCREEN_ENTERED, screenId, "Well-being step entered: $screenId.")
         if (AdaptiveTiming.prolongedTimeDetectionEnabled) {
-            delay(120_000)
-            onAdaptiveEvent(AdaptiveInteractionEventType.PROLONGED_TIME, screenId)
+            delay(AdaptiveTiming.THRESHOLD_MEDIUM)
+            onAdaptiveEvent(AdaptiveInteractionEventType.PROLONGED_TIME, ScreenId.WELL_BEING_INTRO)
         }
     }
 
@@ -87,7 +87,9 @@ fun WellBeingScreen(
                     )
                 )
                 LargePrimaryButton("Iniciar formulario", { onAction(WellBeingAction.StartFormClicked) }, adaptiveUiState = state.adaptiveUiState)
-                LargeSecondaryButton("Necesito ayuda", { onAdaptiveEvent(AdaptiveInteractionEventType.HELP_REQUESTED, screenId) }, adaptiveUiState = state.adaptiveUiState)
+                if (state.adaptiveUiState.isAdaptiveMode) {
+                    LargeSecondaryButton("Necesito ayuda", { onAdaptiveEvent(AdaptiveInteractionEventType.HELP_REQUESTED, screenId) }, adaptiveUiState = state.adaptiveUiState)
+                }
             }
             WellBeingStep.Form -> {
                 TaskProgressHeader("Paso 2 de 5", "Formulario de datos ficticios")

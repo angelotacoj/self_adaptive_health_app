@@ -25,6 +25,7 @@ data class HomeUiState(
 
 sealed interface HomeAction {
     data object AccessTaskClicked : HomeAction
+    data object ConsultAppointmentClicked : HomeAction
     data object RegisterWellBeingClicked : HomeAction
     data object ConfigureReminderClicked : HomeAction
     data object ReviewInformationClicked : HomeAction
@@ -38,6 +39,7 @@ sealed interface HomeAction {
 
 sealed interface HomeEvent {
     data object OpenAccess : HomeEvent
+    data object OpenAppointment : HomeEvent
     data object OpenWellBeing : HomeEvent
     data object OpenReminders : HomeEvent
     data object OpenSummary : HomeEvent
@@ -68,6 +70,7 @@ class HomeViewModel : ViewModel() {
         }
         val event = when (action) {
             HomeAction.AccessTaskClicked -> HomeEvent.OpenAccess
+            HomeAction.ConsultAppointmentClicked -> HomeEvent.OpenAppointment
             HomeAction.RegisterWellBeingClicked -> HomeEvent.OpenWellBeing
             HomeAction.ConfigureReminderClicked -> HomeEvent.OpenReminders
             HomeAction.ReviewInformationClicked -> HomeEvent.OpenSummary

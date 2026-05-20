@@ -29,10 +29,10 @@ enum class InteractionEventType {
 
 enum class TaskId(val label: String) {
     T1_ACCESS("T1 Acceder con código/PIN simulado"),
-    T1_APPOINTMENT("T1 Medical appointment"),
-    T2_WELL_BEING("T2 Registrar dato de bienestar"),
-    T3_REMINDER("T3 Configurar recordatorio"),
-    T4_SUMMARY("T4 Revisar y confirmar información")
+    T2_APPOINTMENT("T2 Consultar cita médica ficticia"),
+    T3_WELL_BEING("T3 Registrar dato de bienestar"),
+    T4_REMINDER("T4 Configurar recordatorio"),
+    T5_SUMMARY("T5 Revisar y confirmar información")
 }
 
 enum class ScreenId {

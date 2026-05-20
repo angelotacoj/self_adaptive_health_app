@@ -40,8 +40,8 @@ fun ReminderScreen(
     LaunchedEffect(screenId) {
         onLog(InteractionEventType.SCREEN_ENTERED, screenId, "Reminder step entered: $screenId.")
         if (AdaptiveTiming.prolongedTimeDetectionEnabled) {
-            delay(180_000)
-            onAdaptiveEvent(AdaptiveInteractionEventType.PROLONGED_TIME, screenId)
+            delay(AdaptiveTiming.THRESHOLD_LONG)
+            onAdaptiveEvent(AdaptiveInteractionEventType.PROLONGED_TIME, ScreenId.REMINDER_INTRO)
         }
     }
 
@@ -77,7 +77,9 @@ fun ReminderScreen(
                 TaskProgressHeader("Paso 1 de 6", "Introducción al recordatorio")
                 InstructionCard("Instrucciones de la tarea", listOf("Elija la actividad, hora y frecuencia asignadas.", "Revise el resumen antes de guardar."))
                 LargePrimaryButton("Crear recordatorio", { onAction(ReminderAction.StartNewReminderClicked) }, adaptiveUiState = state.adaptiveUiState)
-                LargeSecondaryButton("Necesito ayuda", { onAdaptiveEvent(AdaptiveInteractionEventType.HELP_REQUESTED, screenId) }, adaptiveUiState = state.adaptiveUiState)
+                if (state.adaptiveUiState.isAdaptiveMode) {
+                    LargeSecondaryButton("Necesito ayuda", { onAdaptiveEvent(AdaptiveInteractionEventType.HELP_REQUESTED, screenId) }, adaptiveUiState = state.adaptiveUiState)
+                }
             }
             ReminderStep.SelectActivity -> StepChoice("Paso 2 de 6", "Seleccionar actividad", "Actividad" to state.activity, "Usar esta actividad", state) {
                 onAction(ReminderAction.ActivitySelected)

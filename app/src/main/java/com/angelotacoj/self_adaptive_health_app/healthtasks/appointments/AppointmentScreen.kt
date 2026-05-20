@@ -30,6 +30,7 @@ fun AppointmentScreen(
     onRejectAdaptation: () -> Unit,
     onUndoAdaptation: () -> Unit,
     onHideHelp: () -> Unit,
+    onTaskCompleted: () -> Unit,
     onExit: () -> Unit
 ) {
     val screenId = state.step.toScreenId()
@@ -40,8 +41,10 @@ fun AppointmentScreen(
     }
     LaunchedEffect(screenId) {
         onLog(InteractionEventType.SCREEN_ENTERED, screenId, "Appointment step entered: $screenId.")
-        delay(90_000)
-        onAdaptiveEvent(AdaptiveInteractionEventType.PROLONGED_TIME, screenId)
+        if (state.adaptiveUiState.isAdaptiveMode) {
+            delay(90_000)
+            onAdaptiveEvent(AdaptiveInteractionEventType.PROLONGED_TIME, screenId)
+        }
     }
 
     ScreenContainer(
@@ -52,12 +55,13 @@ fun AppointmentScreen(
             onLog(InteractionEventType.BACK_PRESSED, screenId, "Back pressed in appointment task.")
             onAdaptiveEvent(AdaptiveInteractionEventType.BACK_PRESSED, screenId)
             if (onAction(AppointmentAction.BackClicked) is AppointmentEvent.ExitTask) onExit()
-        }
+        },
+        adaptiveUiState = state.adaptiveUiState
     ) {
-        AdaptiveSuggestionCard(state.adaptiveUiState.pendingAdaptation, onApplyAdaptation, onRejectAdaptation)
-        AdaptiveConfirmationDialog(state.adaptiveUiState.pendingAdaptation, onApplyAdaptation, onRejectAdaptation, onRejectAdaptation)
+        AdaptiveSuggestionCard(state.adaptiveUiState.pendingAdaptation, onApplyAdaptation, onRejectAdaptation, state.adaptiveUiState)
+        AdaptiveConfirmationDialog(state.adaptiveUiState.pendingAdaptation, onApplyAdaptation, onRejectAdaptation, onRejectAdaptation, state.adaptiveUiState)
         ContextualHelpBox(state.adaptiveUiState, onHideHelp)
-        UndoAdaptationCard(state.adaptiveUiState.undoMessageVisible, onUndoAdaptation, onHideHelp)
+        UndoAdaptationCard(state.adaptiveUiState.undoMessageVisible, onUndoAdaptation, onHideHelp, state.adaptiveUiState)
 
         when (state.step) {
             AppointmentStep.Overview -> {
@@ -78,7 +82,9 @@ fun AppointmentScreen(
                     },
                     adaptiveUiState = state.adaptiveUiState
                 )
-                LargeSecondaryButton("Necesito ayuda", { onAdaptiveEvent(AdaptiveInteractionEventType.HELP_REQUESTED, screenId) }, adaptiveUiState = state.adaptiveUiState)
+                if (state.adaptiveUiState.isAdaptiveMode) {
+                    LargeSecondaryButton("Necesito ayuda", { onAdaptiveEvent(AdaptiveInteractionEventType.HELP_REQUESTED, screenId) }, adaptiveUiState = state.adaptiveUiState)
+                }
             }
             AppointmentStep.List -> {
                 TaskProgressHeader("Paso 2 de 4", "Lista de citas")
@@ -116,7 +122,9 @@ fun AppointmentScreen(
                         onAction(AppointmentAction.BackClicked)
                     }
                 )
-                LargeSecondaryButton("Necesito ayuda", { onAdaptiveEvent(AdaptiveInteractionEventType.HELP_REQUESTED, screenId) }, adaptiveUiState = state.adaptiveUiState)
+                if (state.adaptiveUiState.isAdaptiveMode) {
+                    LargeSecondaryButton("Necesito ayuda", { onAdaptiveEvent(AdaptiveInteractionEventType.HELP_REQUESTED, screenId) }, adaptiveUiState = state.adaptiveUiState)
+                }
             }
             AppointmentStep.Confirmation -> {
                 TaskProgressHeader("Paso 4 de 4", "Pregunta de confirmación")
@@ -124,8 +132,9 @@ fun AppointmentScreen(
                 ButtonRow(
                     primaryText = "Sí, continuar",
                     onPrimary = {
-                        onLog(InteractionEventType.TASK_COMPLETED, screenId, "T1 completed.")
+                        onLog(InteractionEventType.TASK_COMPLETED, screenId, "T2 completed.")
                         onAction(AppointmentAction.ConfirmFoundClicked)
+                        onTaskCompleted()
                     },
                     secondaryText = "Revisar nuevamente",
                     onSecondary = {

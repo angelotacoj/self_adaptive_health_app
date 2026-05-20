@@ -41,14 +41,14 @@ class SelfAdaptiveT1InstrumentedTest {
         composeRule.startGroupBSession("UI_AR02_001")
         openT1CodeStep()
 
-        composeRule.waitUntil(timeoutMillis = 25_000) {
-            composeRule.onAllNodesWithText("Cambio aplicado").fetchSemanticsNodes().isNotEmpty()
+        composeRule.waitUntil(timeoutMillis = 35_000) {
+            composeRule.onAllNodesWithText("Cambio aplicado automáticamente").fetchSemanticsNodes().isNotEmpty()
         }
 
-        composeRule.onNodeWithText("Cambio aplicado").assertIsDisplayed()
-        composeRule.onNodeWithText("Ayuda para continuar").assertIsDisplayed()
+        composeRule.onNodeWithText("Cambio aplicado automáticamente").assertIsDisplayed()
+        composeRule.onNodeWithText("Ayuda del sistema").assertIsDisplayed()
 
-        composeRule.onNodeWithText("Deshacer").performScrollTo().performClick()
+        composeRule.onNodeWithText("Deshacer cambio").performScrollTo().performClick()
 
         composeRule.waitUntil(timeoutMillis = 5_000) {
             composeRule.onAllNodesWithText("Entendido. No volveré a mostrar esta sugerencia durante esta tarea.").fetchSemanticsNodes().isNotEmpty()
@@ -92,7 +92,7 @@ class SelfAdaptiveT1InstrumentedTest {
         composeRule.onNodeWithText("Validar acceso").performScrollTo().performClick()
 
         composeRule.onNodeWithText("Revisar antes de continuar").assertIsDisplayed()
-        composeRule.onNodeWithText("Confirmar").assertIsDisplayed()
+        composeRule.onNodeWithText("Confirmar y continuar").assertIsDisplayed()
         composeRule.onNodeWithText("Cancelar").performClick()
         exitAccessTask()
     }

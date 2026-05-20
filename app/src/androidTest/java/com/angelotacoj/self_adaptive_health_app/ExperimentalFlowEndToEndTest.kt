@@ -43,10 +43,10 @@ class ExperimentalFlowEndToEndTest {
         composeRule.startGroupASession("E2E_GROUP_A_001")
 
         composeRule.completeCurrentCondition(userCode = "PACIENTE01", pin = "1234", selfAdaptive = false)
-        composeRule.onNodeWithText("Condición completada").assertIsDisplayed()
-        composeRule.onNodeWithText("Continuar con la siguiente condición").performScrollTo().performClick()
-        composeRule.assertTextExists("SELF_ADAPTIVE_UI")
-        composeRule.assertRoomCompletionCounts(total = 4, static = 4, selfAdaptive = 0)
+        composeRule.onNodeWithText("Bloque de tareas completado").assertIsDisplayed()
+        composeRule.onNodeWithText("UEQ-S completado, continuar").performScrollTo().performClick()
+        composeRule.assertTextExists("Etapa 2")
+        composeRule.assertRoomCompletionCounts(total = 5, static = 5, selfAdaptive = 0)
     }
 
     @Test
@@ -54,10 +54,10 @@ class ExperimentalFlowEndToEndTest {
         composeRule.startGroupBSession("E2E_GROUP_B_001")
 
         composeRule.completeCurrentCondition(userCode = "PACIENTE02", pin = "5678", selfAdaptive = true)
-        composeRule.onNodeWithText("Condición completada").assertIsDisplayed()
-        composeRule.onNodeWithText("Continuar con la siguiente condición").performScrollTo().performClick()
-        composeRule.assertTextExists("STATIC_UI")
-        composeRule.assertRoomCompletionCounts(total = 4, static = 0, selfAdaptive = 4)
+        composeRule.onNodeWithText("Bloque de tareas completado").assertIsDisplayed()
+        composeRule.onNodeWithText("UEQ-S completado, continuar").performScrollTo().performClick()
+        composeRule.assertTextExists("Etapa 2")
+        composeRule.assertRoomCompletionCounts(total = 5, static = 0, selfAdaptive = 5)
     }
 
     @Test
@@ -66,10 +66,32 @@ class ExperimentalFlowEndToEndTest {
         composeRule.completeT1Access(userCode = "PACIENTE01", pin = "1234", selfAdaptive = false)
         composeRule.assertRoomCompletionCounts(total = 1, static = 1, selfAdaptive = 0)
         composeRule.assertActiveSessionSnapshot(participantCode = "E2E_RESTORE_001")
-        composeRule.assertTextExists("STATIC_UI")
+        composeRule.assertTextExists("Etapa 1")
         composeRule.onNodeWithText("T1 Acceder con código/PIN simulado").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithTag("start_t1_access").performScrollTo().assertIsNotEnabled()
         composeRule.assertRoomCompletionCounts(total = 1, static = 1, selfAdaptive = 0)
+    }
+
+    @Test
+    fun staticConditionDoesNotShowAdaptiveHelpAffordances() {
+        composeRule.startGroupASession("E2E_STATIC_NO_HELP_001")
+
+        composeRule.assertTextAbsent("Ayuda: explicar esta sesión")
+        composeRule.onNodeWithTag("start_t2_appointment").performScrollTo().assertIsNotEnabled()
+        composeRule.openTaskByTitle("T1 Acceder con código/PIN simulado")
+        composeRule.onNodeWithText("Comenzar").performScrollTo().performClick()
+        composeRule.assertTextExists("Paso 2 de 5")
+        composeRule.assertTextAbsent("Necesito ayuda")
+        composeRule.onNodeWithText("Cancelar tarea").performScrollTo().performClick()
+        composeRule.waitForHome()
+
+        composeRule.openTaskByTitle("T3 Registro de bienestar")
+        composeRule.waitForIdle()
+
+        composeRule.assertTextAbsent("Necesito ayuda")
+        composeRule.assertTextAbsent("Ayuda del sistema")
+        composeRule.assertTextAbsent("Sugerencia de adaptación")
+        composeRule.assertTextAbsent("Cambio aplicado automáticamente")
     }
 }
 
@@ -79,9 +101,10 @@ private fun MainComposeRule.completeCurrentCondition(
     selfAdaptive: Boolean
 ) {
     completeT1Access(userCode, pin, selfAdaptive)
-    completeT2WellBeing(selfAdaptive)
-    completeT3Reminder(selfAdaptive)
-    completeT4Summary(selfAdaptive)
+    completeT2Appointment(selfAdaptive)
+    completeT3WellBeing(selfAdaptive)
+    completeT4Reminder(selfAdaptive)
+    completeT5Summary(selfAdaptive)
 }
 
 private fun MainComposeRule.completeT1Access(
@@ -96,49 +119,65 @@ private fun MainComposeRule.completeT1Access(
     onNode(editableTextField("PIN simulado")).performTextInput(pin)
     onNodeWithText("Validar acceso").performScrollTo().performClick()
     if (selfAdaptive) {
-        onNodeWithText("Confirmar").performClick()
+        onNodeWithText("Confirmar y continuar").performClick()
     }
     onNodeWithText("Finalizar tarea").performScrollTo().performClick()
     returnHomeAfterNonFinalTask()
 }
 
-private fun MainComposeRule.completeT2WellBeing(selfAdaptive: Boolean) {
-    openTaskByTitle("T2 Registro de bienestar")
+private fun MainComposeRule.completeT2Appointment(selfAdaptive: Boolean) {
+    openTaskByTitle("T2 Consultar cita médica")
+    onNodeWithText("Ver lista de citas").performScrollTo().performClick()
+    // Select any appointment (the first one)
+    onAllNodesWithText("Abrir", substring = true)[0].performScrollTo().performClick()
+    onNodeWithText("Continuar a confirmación").performScrollTo().performClick()
+    onNodeWithText("Sí, continuar").performScrollTo().performClick()
+    returnHomeAfterNonFinalTask()
+}
+
+private fun MainComposeRule.completeT3WellBeing(selfAdaptive: Boolean) {
+    openTaskByTitle("T3 Registro de bienestar")
     onNodeWithText("Iniciar formulario").performScrollTo().performClick()
     onNodeWithText("Validar valor").performScrollTo().performClick()
     onNodeWithText("Revisar antes de guardar").performScrollTo().performClick()
     onNodeWithText("Guardar").performScrollTo().performClick()
     if (selfAdaptive) {
-        onNodeWithText("Confirmar").performClick()
+        onNodeWithText("Confirmar y continuar").performClick()
     }
     returnHomeAfterNonFinalTask()
 }
 
-private fun MainComposeRule.completeT3Reminder(selfAdaptive: Boolean) {
-    openTaskByTitle("T3 Recordatorio")
+private fun MainComposeRule.completeT4Reminder(selfAdaptive: Boolean) {
+    openTaskByTitle("T4 Recordatorio")
     onNodeWithText("Crear recordatorio").performScrollTo().performClick()
     onNodeWithText("Usar esta actividad").performScrollTo().performClick()
     onNodeWithText("Usar esta hora").performScrollTo().performClick()
     onNodeWithText("Usar esta frecuencia").performScrollTo().performClick()
     onNodeWithText("Guardar recordatorio").performScrollTo().performClick()
     if (selfAdaptive) {
-        onNodeWithText("Confirmar").performClick()
+        onNodeWithText("Confirmar y continuar").performClick()
     }
     returnHomeAfterNonFinalTask()
 }
 
-private fun MainComposeRule.completeT4Summary(selfAdaptive: Boolean) {
-    openTaskByTitle("T4 Revisar y confirmar")
+private fun MainComposeRule.completeT5Summary(selfAdaptive: Boolean) {
+    openTaskByTitle("T5 Revisar y confirmar")
     onNodeWithText("Revisar detalles").performScrollTo().performClick()
     onNodeWithText("Guardar información").performScrollTo().performClick()
     if (selfAdaptive) {
-        onNodeWithText("Confirmar").performClick()
+        onNodeWithText("Confirmar y continuar").performClick()
     }
     onNodeWithText("Confirmar").performScrollTo().performClick()
+    // Wait for navigation to ConditionTransition or next step
+    waitForIdle()
 }
 
 private fun MainComposeRule.returnHomeAfterNonFinalTask() {
     onNodeWithText("Volver al inicio").performScrollTo().performClick()
+    waitForHome()
+}
+
+private fun MainComposeRule.waitForHome() {
     waitUntil(timeoutMillis = 5_000) {
         onAllNodesWithText("Inicio").fetchSemanticsNodes().isNotEmpty()
     }
@@ -173,6 +212,12 @@ private fun MainComposeRule.assertTextExists(text: String) {
     }
 }
 
+private fun MainComposeRule.assertTextAbsent(text: String) {
+    waitUntil(timeoutMillis = 5_000) {
+        onAllNodesWithText(text).fetchSemanticsNodes().isEmpty()
+    }
+}
+
 private fun roomCompletionCounts(): CompletionCounts {
     return runBlocking {
         val dao = AppContainer.database.experimentDao()
@@ -187,22 +232,6 @@ private fun roomCompletionCounts(): CompletionCounts {
             selfAdaptive = dao.getCompletedTaskCount(sessionId, "SELF_ADAPTIVE_UI")
         )
     }
-}
-
-private fun MainComposeRule.assertNoParticipantTaskStartButtons() {
-    TaskId.entries.forEach { task ->
-        when (task) {
-            TaskId.T1_ACCESS -> assertDoesNotExist("start_t1_access")
-            TaskId.T2_WELL_BEING -> assertDoesNotExist("start_t2_wellbeing")
-            TaskId.T3_REMINDER -> assertDoesNotExist("start_t3_reminder")
-            TaskId.T4_SUMMARY -> assertDoesNotExist("start_t4_summary")
-            else -> Unit
-        }
-    }
-}
-
-private fun androidx.compose.ui.test.SemanticsNodeInteractionsProvider.assertDoesNotExist(tag: String) {
-    assert(onAllNodesWithTag(tag).fetchSemanticsNodes().isEmpty()) { "Expected no node with tag $tag." }
 }
 
 private data class CompletionCounts(

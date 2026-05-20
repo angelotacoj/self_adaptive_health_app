@@ -37,7 +37,7 @@ fun MainComposeRule.startGroupBSession(participantCode: String) {
     onNodeWithText("Código de participante").performTextInput(participantCode)
     onNodeWithText("Grupo B").performScrollTo().performClick()
     onNodeWithText("Iniciar sesión experimental").performScrollTo().performClick()
-    onNodeWithText("SELF_ADAPTIVE_UI").assertExistsCompat()
+    onNodeWithText("Etapa 1").assertExistsCompat()
 }
 
 fun MainComposeRule.startGroupASession(participantCode: String) {
@@ -45,19 +45,35 @@ fun MainComposeRule.startGroupASession(participantCode: String) {
     onNodeWithText("Código de participante").performTextInput(participantCode)
     onNodeWithText("Grupo A").performScrollTo().performClick()
     onNodeWithText("Iniciar sesión experimental").performScrollTo().performClick()
-    onNodeWithText("STATIC_UI").assertExistsCompat()
+    onNodeWithText("Etapa 1").assertExistsCompat()
 }
 
 fun MainComposeRule.openTaskByTitle(title: String) {
     onNodeWithText(title).performScrollTo()
     val tag = when {
         title.startsWith("T1") -> "start_t1_access"
-        title.startsWith("T2") -> "start_t2_wellbeing"
-        title.startsWith("T3") -> "start_t3_reminder"
-        title.startsWith("T4") -> "start_t4_summary"
+        title.startsWith("T2") -> "start_t2_appointment"
+        title.startsWith("T3") -> "start_t3_wellbeing"
+        title.startsWith("T4") -> "start_t4_reminder"
+        title.startsWith("T5") -> "start_t5_summary"
         else -> error("Unknown task title: $title")
     }
     onNodeWithTag(tag).performScrollTo().performClick()
+}
+
+fun MainComposeRule.completeT1AccessToUnlockTasks() {
+    openTaskByTitle("T1 Acceder con código/PIN simulado")
+    onNodeWithText("Comenzar").performScrollTo().performClick()
+    onNode(editableTextField("Código de usuario")).performTextInput("PACIENTE02")
+    onNodeWithText("Continuar").performScrollTo().performClick()
+    onNode(editableTextField("PIN simulado")).performTextInput("5678")
+    onNodeWithText("Validar acceso").performScrollTo().performClick()
+    onNodeWithText("Confirmar y continuar").performClick()
+    onNodeWithText("Finalizar tarea").performScrollTo().performClick()
+    onNodeWithText("Volver al inicio").performScrollTo().performClick()
+    waitUntil(timeoutMillis = 5_000) {
+        onAllNodesWithText("Inicio").fetchSemanticsNodes().isNotEmpty()
+    }
 }
 
 fun MainComposeRule.pressBackBestEffort(times: Int = 4) {

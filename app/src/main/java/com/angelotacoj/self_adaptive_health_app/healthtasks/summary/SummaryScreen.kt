@@ -40,8 +40,8 @@ fun SummaryScreen(
     LaunchedEffect(screenId) {
         onLog(InteractionEventType.SCREEN_ENTERED, screenId, "Summary step entered: $screenId.")
         if (AdaptiveTiming.prolongedTimeDetectionEnabled) {
-            delay(90_000)
-            onAdaptiveEvent(AdaptiveInteractionEventType.PROLONGED_TIME, screenId)
+            delay(AdaptiveTiming.THRESHOLD_SHORT)
+            onAdaptiveEvent(AdaptiveInteractionEventType.PROLONGED_TIME, ScreenId.SUMMARY_INTRO)
         }
     }
     if (state.step == SummaryStep.ReinforcedConfirmation) {
@@ -88,7 +88,9 @@ fun SummaryScreen(
                 TaskProgressHeader("Paso 1 de 4", "Resumen de información")
                 InstructionCard("Instrucciones de la tarea", listOf("Revise el acceso y el recordatorio simulados.", "Guardar requiere una confirmación reforzada."))
                 LargePrimaryButton("Revisar detalles", { onAction(SummaryAction.StartReviewClicked) }, adaptiveUiState = state.adaptiveUiState)
-                LargeSecondaryButton("Necesito ayuda", { onAdaptiveEvent(AdaptiveInteractionEventType.HELP_REQUESTED, screenId) }, adaptiveUiState = state.adaptiveUiState)
+                if (state.adaptiveUiState.isAdaptiveMode) {
+                    LargeSecondaryButton("Necesito ayuda", { onAdaptiveEvent(AdaptiveInteractionEventType.HELP_REQUESTED, screenId) }, adaptiveUiState = state.adaptiveUiState)
+                }
             }
             SummaryStep.Details -> {
                 TaskProgressHeader("Paso 2 de 4", "Revisar detalles")
@@ -108,7 +110,9 @@ fun SummaryScreen(
                     },
                     adaptiveUiState = state.adaptiveUiState
                 )
-                LargeSecondaryButton("Necesito ayuda", { onAdaptiveEvent(AdaptiveInteractionEventType.HELP_REQUESTED, screenId) }, adaptiveUiState = state.adaptiveUiState)
+                if (state.adaptiveUiState.isAdaptiveMode) {
+                    LargeSecondaryButton("Necesito ayuda", { onAdaptiveEvent(AdaptiveInteractionEventType.HELP_REQUESTED, screenId) }, adaptiveUiState = state.adaptiveUiState)
+                }
             }
             SummaryStep.ReinforcedConfirmation -> {
                 TaskProgressHeader("Paso 3 de 4", "Confirmación reforzada")

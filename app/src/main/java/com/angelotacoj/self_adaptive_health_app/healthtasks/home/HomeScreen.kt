@@ -10,6 +10,7 @@ import androidx.compose.material3.Text
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.ExperimentCondition
 import com.angelotacoj.self_adaptive_health_app.core.logging.TaskId
 import com.angelotacoj.self_adaptive_health_app.core.ui.HeroHeaderCard
 import com.angelotacoj.self_adaptive_health_app.core.ui.LargeDestructiveButton
@@ -25,6 +26,7 @@ fun HomeScreen(
     events: kotlinx.coroutines.flow.SharedFlow<HomeEvent>,
     onAction: (HomeAction) -> Unit,
     onNavigateToAccess: () -> Unit,
+    onNavigateToAppointment: () -> Unit,
     onNavigateToWellBeing: () -> Unit,
     onNavigateToReminders: () -> Unit,
     onNavigateToSummary: () -> Unit,
@@ -45,7 +47,7 @@ fun HomeScreen(
             }
         )
     }
-    if (uiState.showSessionHelp) {
+    if (uiState.showSessionHelp && state.session.currentCondition == ExperimentCondition.SELF_ADAPTIVE_UI) {
         AlertDialog(
             containerColor = Color.White,
             onDismissRequest = { onAction(HomeAction.DismissHelpClicked) },
@@ -53,7 +55,7 @@ fun HomeScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Esta es una sesión experimental con datos simulados.")
-                    Text("Debe completar cuatro tareas en la condición actual. Luego la aplicación le avisará cuándo continuar con la siguiente condición.")
+                    Text("Debe completar cinco tareas en la etapa actual. Luego la aplicación le avisará cuándo continuar con la siguiente etapa.")
                     Text("Puede usar Volver o Cancelar tarea si necesita regresar. No ingrese datos personales reales.")
                 }
             },
@@ -67,6 +69,7 @@ fun HomeScreen(
         events.collect { event ->
             when (event) {
                 HomeEvent.OpenAccess -> onNavigateToAccess()
+                HomeEvent.OpenAppointment -> onNavigateToAppointment()
                 HomeEvent.OpenWellBeing -> onNavigateToWellBeing()
                 HomeEvent.OpenReminders -> onNavigateToReminders()
                 HomeEvent.OpenSummary -> onNavigateToSummary()
@@ -89,7 +92,7 @@ fun HomeScreen(
         SessionInfoCard(
             participantCode = state.session.participantCode,
             group = state.session.group.label,
-            condition = state.session.currentCondition.toString(),
+            condition = "Etapa ${state.session.currentConditionIndex + 1}",
             dataSet = state.dataSet.id
         )
 
@@ -109,36 +112,47 @@ fun HomeScreen(
             startButtonTestTag = "start_t1_access"
         )
         TaskCard(
-            title = "T2 Registro de bienestar",
+            title = "T2 Consultar cita médica",
+            description = "Revise los detalles de su próxima cita médica ficticia.",
+            buttonText = state.buttonTextFor(TaskId.T2_APPOINTMENT),
+            onClick = { onAction(HomeAction.ConsultAppointmentClicked) },
+            status = state.statusFor(TaskId.T2_APPOINTMENT),
+            enabled = state.isAvailable(TaskId.T2_APPOINTMENT),
+            startButtonTestTag = "start_t2_appointment"
+        )
+        TaskCard(
+            title = "T3 Registro de bienestar",
             description = "Ingrese un valor simulado, valídelo y guarde el registro ficticio.",
-            buttonText = state.buttonTextFor(TaskId.T2_WELL_BEING),
+            buttonText = state.buttonTextFor(TaskId.T3_WELL_BEING),
             onClick = { onAction(HomeAction.RegisterWellBeingClicked) },
-            status = state.statusFor(TaskId.T2_WELL_BEING),
-            enabled = !state.isCompleted(TaskId.T2_WELL_BEING),
-            startButtonTestTag = "start_t2_wellbeing"
+            status = state.statusFor(TaskId.T3_WELL_BEING),
+            enabled = state.isAvailable(TaskId.T3_WELL_BEING),
+            startButtonTestTag = "start_t3_wellbeing"
         )
         TaskCard(
-            title = "T3 Recordatorio",
+            title = "T4 Recordatorio",
             description = "Configure un recordatorio ficticio seleccionando actividad, hora y frecuencia.",
-            buttonText = state.buttonTextFor(TaskId.T3_REMINDER),
+            buttonText = state.buttonTextFor(TaskId.T4_REMINDER),
             onClick = { onAction(HomeAction.ConfigureReminderClicked) },
-            status = state.statusFor(TaskId.T3_REMINDER),
-            enabled = !state.isCompleted(TaskId.T3_REMINDER),
-            startButtonTestTag = "start_t3_reminder"
+            status = state.statusFor(TaskId.T4_REMINDER),
+            enabled = state.isAvailable(TaskId.T4_REMINDER),
+            startButtonTestTag = "start_t4_reminder"
         )
         TaskCard(
-            title = "T4 Revisar y confirmar",
-            description = "Revise el acceso, el registro y el recordatorio simulados; luego confirme, edite o cancele.",
-            buttonText = state.buttonTextFor(TaskId.T4_SUMMARY),
+            title = "T5 Revisar y confirmar",
+            description = "Revise la información simulada y confirme el guardado final.",
+            buttonText = state.buttonTextFor(TaskId.T5_SUMMARY),
             onClick = { onAction(HomeAction.ReviewInformationClicked) },
-            status = state.statusFor(TaskId.T4_SUMMARY),
-            enabled = !state.isCompleted(TaskId.T4_SUMMARY),
-            startButtonTestTag = "start_t4_summary"
+            status = state.statusFor(TaskId.T5_SUMMARY),
+            enabled = state.isAvailable(TaskId.T5_SUMMARY),
+            startButtonTestTag = "start_t5_summary"
         )
-        LargeSecondaryButton(
-            text = "Ayuda: explicar esta sesión",
-            onClick = { onAction(HomeAction.HelpClicked) }
-        )
+        if (state.session.currentCondition == ExperimentCondition.SELF_ADAPTIVE_UI) {
+            LargeSecondaryButton(
+                text = "Ayuda: explicar esta sesión",
+                onClick = { onAction(HomeAction.HelpClicked) }
+            )
+        }
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Herramientas del investigador", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             LargeSecondaryButton(
@@ -154,14 +168,26 @@ fun HomeScreen(
 }
 
 private fun HomeState.statusFor(taskId: TaskId): String {
-    return if (isCompleted(taskId)) "Completada" else "Pendiente"
+    return when {
+        isCompleted(taskId) -> "Completada"
+        taskId != TaskId.T1_ACCESS && !isCompleted(TaskId.T1_ACCESS) -> "Bloqueada hasta completar T1"
+        else -> "Pendiente"
+    }
 }
 
 private fun HomeState.buttonTextFor(taskId: TaskId): String {
-    return if (isCompleted(taskId)) "Completada" else "Iniciar tarea"
+    return when {
+        isCompleted(taskId) -> "Completada"
+        taskId != TaskId.T1_ACCESS && !isCompleted(TaskId.T1_ACCESS) -> "Complete T1 primero"
+        else -> "Iniciar tarea"
+    }
 }
 
 private fun HomeState.isCompleted(taskId: TaskId): Boolean {
     val completed = session.completedTasksByCondition[session.currentCondition].orEmpty()
     return taskId in completed
+}
+
+private fun HomeState.isAvailable(taskId: TaskId): Boolean {
+    return !isCompleted(taskId) && (taskId == TaskId.T1_ACCESS || isCompleted(TaskId.T1_ACCESS))
 }

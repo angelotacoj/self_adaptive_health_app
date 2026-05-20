@@ -64,8 +64,8 @@ fun AccessScreen(
     LaunchedEffect(screenId) {
         onLog(InteractionEventType.SCREEN_ENTERED, screenId, "Access step entered: $screenId.")
         if (AdaptiveTiming.prolongedTimeDetectionEnabled) {
-            delay(10_000)
-            onAdaptiveEvent(AdaptiveInteractionEventType.PROLONGED_TIME, screenId)
+            delay(AdaptiveTiming.THRESHOLD_SHORT)
+            onAdaptiveEvent(AdaptiveInteractionEventType.PROLONGED_TIME, ScreenId.ACCESS_CODE)
         }
     }
 
@@ -78,7 +78,7 @@ fun AccessScreen(
         }
     }
 
-    if (state.showHelpDialog) {
+    if (state.adaptiveUiState.isAdaptiveMode && state.showHelpDialog) {
         AlertDialog(
             containerColor = Color.White,
             onDismissRequest = { onAction(AccessAction.DismissHelpClicked) },
@@ -161,18 +161,26 @@ fun AccessScreen(
                         .focusRequester(codeFocusRequester)
                 )
                 ErrorText(state)
-                ButtonRow(
-                    primaryText = "Continuar",
-                    onPrimary = {
-                        handleFieldEvent(onAction(AccessAction.ContinueFromCodeClicked), screenId, onFieldError, onAdaptiveEvent)
-                    },
-                    secondaryText = "Necesito ayuda",
-                    onSecondary = {
-                        onAdaptiveEvent(AdaptiveInteractionEventType.HELP_REQUESTED, screenId)
-                        onAction(AccessAction.HelpClicked)
-                    },
-                    adaptiveUiState = state.adaptiveUiState
-                )
+                if (state.adaptiveUiState.isAdaptiveMode) {
+                    ButtonRow(
+                        primaryText = "Continuar",
+                        onPrimary = {
+                            handleFieldEvent(onAction(AccessAction.ContinueFromCodeClicked), screenId, onFieldError, onAdaptiveEvent)
+                        },
+                        secondaryText = "Necesito ayuda",
+                        onSecondary = {
+                            onAdaptiveEvent(AdaptiveInteractionEventType.HELP_REQUESTED, screenId)
+                            onAction(AccessAction.HelpClicked)
+                        },
+                        adaptiveUiState = state.adaptiveUiState
+                    )
+                } else {
+                    LargePrimaryButton(
+                        "Continuar",
+                        { handleFieldEvent(onAction(AccessAction.ContinueFromCodeClicked), screenId, onFieldError, onAdaptiveEvent) },
+                        adaptiveUiState = state.adaptiveUiState
+                    )
+                }
             }
 
             AccessStep.Pin -> {
@@ -203,24 +211,29 @@ fun AccessScreen(
                         .focusRequester(pinFocusRequester)
                 )
                 ErrorText(state)
-                ButtonRow(
-                    primaryText = "Validar acceso",
-                    onPrimary = {
-                        val event = onAction(AccessAction.ValidateAccessClicked)
-                        if (event is AccessEvent.FieldError) {
-                            handleFieldEvent(event, screenId, onFieldError, onAdaptiveEvent)
-                        } else {
-                            val requiresValidation = onAdaptiveEvent(AdaptiveInteractionEventType.SENSITIVE_ACTION, screenId)
-                            if (!requiresValidation) onAction(AccessAction.AccessValidated)
-                        }
-                    },
-                    secondaryText = "Necesito ayuda",
-                    onSecondary = {
-                        onAdaptiveEvent(AdaptiveInteractionEventType.HELP_REQUESTED, screenId)
-                        onAction(AccessAction.HelpClicked)
-                    },
-                    adaptiveUiState = state.adaptiveUiState
-                )
+                val validateAccess: () -> Unit = {
+                    val event = onAction(AccessAction.ValidateAccessClicked)
+                    if (event is AccessEvent.FieldError) {
+                        handleFieldEvent(event, screenId, onFieldError, onAdaptiveEvent)
+                    } else {
+                        val requiresValidation = onAdaptiveEvent(AdaptiveInteractionEventType.SENSITIVE_ACTION, screenId)
+                        if (!requiresValidation) onAction(AccessAction.AccessValidated)
+                    }
+                }
+                if (state.adaptiveUiState.isAdaptiveMode) {
+                    ButtonRow(
+                        primaryText = "Validar acceso",
+                        onPrimary = validateAccess,
+                        secondaryText = "Necesito ayuda",
+                        onSecondary = {
+                            onAdaptiveEvent(AdaptiveInteractionEventType.HELP_REQUESTED, screenId)
+                            onAction(AccessAction.HelpClicked)
+                        },
+                        adaptiveUiState = state.adaptiveUiState
+                    )
+                } else {
+                    LargePrimaryButton("Validar acceso", validateAccess, adaptiveUiState = state.adaptiveUiState)
+                }
             }
 
             AccessStep.Validation -> {

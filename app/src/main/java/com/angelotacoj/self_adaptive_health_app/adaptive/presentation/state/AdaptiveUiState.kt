@@ -4,6 +4,7 @@ import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.AppliedAda
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.PendingAdaptation
 
 data class AdaptiveUiState(
+    val isAdaptiveMode: Boolean = false,
     val textScale: Float = 1.0f,
     val highContrast: Boolean = false,
     val enlargedTouchTargets: Boolean = false,
@@ -17,5 +18,6 @@ data class AdaptiveUiState(
     val safeExitEnabled: Boolean = true,
     val pendingAdaptation: PendingAdaptation? = null,
     val lastAppliedAdaptation: AppliedAdaptation? = null,
-    val undoMessageVisible: Boolean = false
+    val undoMessageVisible: Boolean = false,
+    val snackbarMessage: String? = null
 )
