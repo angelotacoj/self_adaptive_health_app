@@ -10,6 +10,7 @@ import com.angelotacoj.self_adaptive_health_app.core.persistence.room.Adaptation
 import com.angelotacoj.self_adaptive_health_app.core.persistence.room.AdaptationPreferenceEntity
 import com.angelotacoj.self_adaptive_health_app.core.persistence.room.ExperimentDao
 import com.angelotacoj.self_adaptive_health_app.core.persistence.room.InteractionEventEntity
+import com.angelotacoj.self_adaptive_health_app.core.persistence.room.InitialUserProfileEntity
 import com.angelotacoj.self_adaptive_health_app.core.persistence.room.TaskStateEntity
 import com.angelotacoj.self_adaptive_health_app.core.persistence.room.UserDecisionEventEntity
 import kotlinx.coroutines.Dispatchers
@@ -102,6 +103,10 @@ class PersistentKnowledgeRepository(
 
     override suspend fun getTaskState(taskId: TaskId, screenId: ScreenId): TaskStateEntity? {
         return dao.getTaskState(taskId.name, screenId.name)
+    }
+
+    override suspend fun saveInitialUserProfile(entity: InitialUserProfileEntity) {
+        dao.insertInitialUserProfile(entity)
     }
 
     override suspend fun clearCurrentSession() {

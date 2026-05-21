@@ -16,6 +16,16 @@ interface ExperimentDao {
     @Query("SELECT * FROM participant_sessions WHERE participantCode = :participantCode ORDER BY startedAt DESC")
     suspend fun getSessionByParticipantCode(participantCode: String): List<ParticipantSessionEntity>
 
+    @Query(
+        "SELECT MAX(CAST(SUBSTR(participantCode, 2, INSTR(participantCode, '-') - 2) AS INTEGER)) " +
+            "FROM participant_sessions " +
+            "WHERE participantCode GLOB 'P[0-9][0-9]-*' OR participantCode GLOB 'P[0-9][0-9][0-9]*-*'"
+    )
+    suspend fun getMaxParticipantSequence(): Int?
+
+    @Query("SELECT EXISTS(SELECT 1 FROM participant_sessions WHERE participantCode = :code)")
+    suspend fun participantCodeExists(code: String): Boolean
+
     @Query("SELECT * FROM participant_sessions WHERE isCompleted = 0 ORDER BY startedAt DESC LIMIT 1")
     suspend fun getActiveSession(): ParticipantSessionEntity?
 
@@ -115,11 +125,15 @@ interface ExperimentDao {
     @Query("DELETE FROM user_decision_events WHERE sessionId = :sessionId")
     suspend fun deleteUserDecisionEventsForSession(sessionId: String)
 
+    @Query("DELETE FROM initial_user_profiles WHERE sessionId = :sessionId")
+    suspend fun deleteInitialUserProfileForSession(sessionId: String)
+
     suspend fun deleteSessionCascade(sessionId: String) {
         deleteUserDecisionEventsForSession(sessionId)
         deleteAdaptationEventsForSession(sessionId)
         deleteInteractionEventsForSession(sessionId)
         deleteTaskRunsForSession(sessionId)
+        deleteInitialUserProfileForSession(sessionId)
         deleteParticipantSession(sessionId)
     }
 
@@ -137,6 +151,12 @@ interface ExperimentDao {
 
     @Query("SELECT * FROM task_interaction_states WHERE taskId = :taskId AND screenId = :screenId LIMIT 1")
     suspend fun getTaskState(taskId: String, screenId: String): TaskStateEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertInitialUserProfile(entity: InitialUserProfileEntity)
+
+    @Query("SELECT * FROM initial_user_profiles WHERE sessionId = :sessionId LIMIT 1")
+    suspend fun getInitialUserProfile(sessionId: String): InitialUserProfileEntity?
 
     @Query("UPDATE adaptation_events SET undone = 1 WHERE adaptationEventId = :adaptationEventId")
     suspend fun markAdaptationEventUndone(adaptationEventId: String)
@@ -162,7 +182,11 @@ interface ExperimentDao {
     @Query("DELETE FROM task_interaction_states")
     suspend fun clearTaskInteractionStates()
 
+    @Query("DELETE FROM initial_user_profiles")
+    suspend fun clearInitialUserProfiles()
+
     suspend fun clearAll() {
+        clearInitialUserProfiles()
         clearUserDecisionEvents()
         clearAdaptationEvents()
         clearInteractionEvents()
@@ -170,5 +194,9 @@ interface ExperimentDao {
         clearTaskInteractionStates()
         deleteAllTaskRuns()
         deleteAllParticipantSessions()
+    }
+
+    suspend fun deleteAllResearchData() {
+        clearAll()
     }
 }

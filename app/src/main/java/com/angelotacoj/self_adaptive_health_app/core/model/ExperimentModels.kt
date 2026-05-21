@@ -34,7 +34,8 @@ data class ExperimentSessionState(
     val currentDataSet: FakeHealthDataSet,
     val completedTasksByCondition: Map<ExperimentCondition, Set<TaskId>> = emptyMap(),
     val sessionStartedAt: Long = System.currentTimeMillis(),
-    val isSessionActive: Boolean = true
+    val isSessionActive: Boolean = true,
+    val isProfileCompleted: Boolean = false
 ) {
     val currentCondition: ExperimentCondition
         get() = conditionOrder[currentConditionIndex]

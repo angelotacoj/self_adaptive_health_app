@@ -173,7 +173,8 @@ fun AppNavHost(
             currentDataSet = dataSet,
             completedTasksByCondition = completed,
             sessionStartedAt = entity.startedAt,
-            isSessionActive = isActiveSession
+            isSessionActive = isActiveSession,
+            isProfileCompleted = snapshot.isProfileCompleted
         )
     }
 
@@ -214,20 +215,55 @@ fun AppNavHost(
         }
         log(started.logEntry(InteractionEventType.SESSION_STARTED, screenId = ScreenId.EXPERIMENT_SETUP, message = "Experimental session started."))
         log(started.logEntry(InteractionEventType.CONDITION_STARTED, screenId = ScreenId.EXPERIMENT_SETUP, message = "${started.currentCondition} condition started."))
-        navController.navigate(AppRoute.Home.route) {
+        navController.navigate(AppRoute.InitialProfile.route) {
             popUpTo(AppRoute.ExperimentSetup.route) { inclusive = false }
             launchSingleTop = true
         }
+    }
+
+    suspend fun generateParticipantCode(suffix: String): String {
+        val dao = AppContainer.database.experimentDao()
+        var nextSequence = (dao.getMaxParticipantSequence() ?: 0) + 1
+        while (true) {
+            val candidate = "P%02d-%s".format(nextSequence, suffix)
+            if (!dao.participantCodeExists(candidate)) {
+                MapeKLog.stage("PROFILE", "generated participantCode=$candidate")
+                return candidate
+            }
+            nextSequence += 1
+        }
+    }
+
+
+    fun applyProfileToAdaptiveState(session: ExperimentSessionState) {
+        adaptiveViewModel.resetTemporaryStateForTask(
+            isAdaptive = session.currentCondition == ExperimentCondition.SELF_ADAPTIVE_UI
+        )
+        MapeKLog.experiment("adaptive state initialized from condition baseline condition=${session.currentCondition}")
     }
 
     LaunchedEffect(Unit) {
         val restored = restoreActiveSession()
         if (restored != null) {
             sessionState = restored
-            adaptiveViewModel.setAdaptiveMode(restored.currentCondition == ExperimentCondition.SELF_ADAPTIVE_UI)
+            applyProfileToAdaptiveState(restored)
             MapeKLog.experiment("active session restored session=${restored.sessionId} condition=${restored.currentCondition}")
+            if (restored.isProfileCompleted) {
+                navController.navigate(AppRoute.Home.route) {
+                    popUpTo(AppRoute.ExperimentSetup.route) { inclusive = false }
+                    launchSingleTop = true
+                }
+            } else {
+                navController.navigate(AppRoute.InitialProfile.route) {
+                    popUpTo(AppRoute.ExperimentSetup.route) { inclusive = false }
+                    launchSingleTop = true
+                }
+            }
         }
     }
+
+
+
 
 
     fun processAdaptiveEvent(taskId: TaskId?, screenId: ScreenId, type: AdaptiveInteractionEventType, summary: com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.ReviewSummary? = null): Boolean {
@@ -257,7 +293,8 @@ fun AppNavHost(
 
     fun completeTask(taskId: TaskId, screenId: ScreenId, message: String) {
         val session = activeSession() ?: return
-        val completedTaskState = session.finishCurrentTask()
+        val sessionForCompletion = if (session.currentTaskId == taskId) session else session.startTask(taskId)
+        val completedTaskState = sessionForCompletion.finishCurrentTask()
         val conditionDone = completedTaskState.isCurrentConditionComplete()
         val finalDone = completedTaskState.isExperimentComplete()
         val nextState = if (finalDone) completedTaskState.finishSession() else completedTaskState
@@ -338,27 +375,43 @@ fun AppNavHost(
         composable(AppRoute.ExperimentSetup.route) {
             val viewModel: ExperimentSetupViewModel = viewModel()
             val state by viewModel.state.collectAsStateWithLifecycle()
+            var generatedParticipantCode by remember { mutableStateOf<String?>(null) }
+            LaunchedEffect(state.participantSuffix) {
+                generatedParticipantCode = if (state.participantSuffix.length == 4) {
+                    generateParticipantCode(state.participantSuffix)
+                } else {
+                    null
+                }
+            }
             ExperimentSetupScreen(
                 state = state,
+                generatedParticipantCode = generatedParticipantCode,
                 existingSessionMessage = existingSetupSession?.let {
                     "Ya existe una sesión para ${it.participantCode}. Condición actual: ${it.currentCondition}. Tareas completadas: ${it.completedTaskCount()}/${it.totalRequiredTaskRuns()}."
                 },
                 onAction = viewModel::onAction,
                 onStartSession = { newSession ->
                     scope.launch {
+                        val suffix = newSession.participantCode.substringAfter("-", missingDelimiterValue = newSession.participantCode)
+                        val uniqueCode = if (AppContainer.database.experimentDao().participantCodeExists(newSession.participantCode)) {
+                            generateParticipantCode(suffix)
+                        } else {
+                            newSession.participantCode
+                        }
+                        val resolvedSession = newSession.copy(participantCode = uniqueCode)
                         val existing = AppContainer.database.experimentDao()
-                            .getSessionByParticipantCode(newSession.participantCode)
+                            .getSessionByParticipantCode(resolvedSession.participantCode)
                             .firstOrNull()
                         val active = existing?.let { buildSessionStateFromRoom(it.sessionId) }
                         if (active != null && active.isSessionActive) {
                             withContext(Dispatchers.Main) {
-                                pendingSetupSession = newSession
+                                pendingSetupSession = resolvedSession
                                 existingSetupSession = active
                             }
-                            MapeKLog.experiment("existing participant session found participant=${newSession.participantCode} session=${active.sessionId}")
+                            MapeKLog.experiment("existing participant session found participant=${resolvedSession.participantCode} session=${active.sessionId}")
                         } else {
                             withContext(Dispatchers.Main) {
-                                startFreshSession(newSession)
+                                startFreshSession(resolvedSession)
                             }
                         }
                     }
@@ -384,9 +437,14 @@ fun AppNavHost(
                     val existing = existingSetupSession
                     if (existing != null) {
                         scope.launch {
+                            MapeKLog.stage("SECURITY", "delete requested type=CURRENT_SESSION")
+                            MapeKLog.stage("SECURITY", "pin validation result=SUCCESS")
                             AppContainer.database.experimentDao().deleteSessionCascade(existing.sessionId)
-                            AppContainer.experimentPreferences.clearActiveSessionPreferences()
-                            MapeKLog.knowledge("delete current session sessionId=${existing.sessionId}")
+                            val activeId = AppContainer.experimentPreferences.sessionSnapshot.first().currentSessionId
+                            if (activeId == existing.sessionId) {
+                                AppContainer.experimentPreferences.clearActiveSessionPreferences()
+                            }
+                            MapeKLog.knowledge("delete current session completed sessionId=${existing.sessionId}")
                             existingSetupSession = null
                         }
                     }
@@ -397,6 +455,44 @@ fun AppNavHost(
             )
         }
 
+        composable(AppRoute.InitialProfile.route) {
+            val session = sessionState ?: return@composable
+            com.angelotacoj.self_adaptive_health_app.experiment.InitialProfileScreen { q1, q2, q3, q4, q5, q6, q7, q8 ->
+                val entity = com.angelotacoj.self_adaptive_health_app.core.persistence.room.InitialUserProfileEntity(
+                    sessionId = session.sessionId,
+                    participantCode = session.participantCode,
+                    prefersLargeText = q1,
+                    prefersLargeButtons = q2,
+                    prefersIconLabels = q3,
+                    prefersGuidedSteps = q4,
+                    prefersConfirmations = q5,
+                    mobileComfortLevel = q6,
+                    prefersErrorExamples = q7,
+                    prefersAdaptationPrompt = q8,
+                    timestamp = System.currentTimeMillis()
+                )
+                scope.launch {
+                    knowledge.saveInitialUserProfile(entity)
+                    MapeKLog.experiment("profile saved sessionId=${session.sessionId}")
+                    MapeKLog.experiment("initial profile added to Knowledge Base")
+                    adaptiveViewModel.resetTemporaryStateForTask(
+                        isAdaptive = session.currentCondition == ExperimentCondition.SELF_ADAPTIVE_UI
+                    )
+                    MapeKLog.experiment("profile saved without pre-applying adaptive UI")
+                    
+                    val nextSession = session.copy(isProfileCompleted = true)
+                    sessionState = nextSession
+                    AppContainer.experimentPreferences.markProfileCompleted()
+                    AppContainer.experimentPreferences.saveSession(nextSession)
+                    withContext(Dispatchers.Main.immediate){
+                        navController.navigate(AppRoute.Home.route) {
+                            popUpTo(AppRoute.InitialProfile.route) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
+                }
+            }
+        }
         composable(AppRoute.Home.route) {
             val session = activeSession() ?: returnToSetup(navController)
             if (session != null) {
@@ -436,7 +532,6 @@ fun AppNavHost(
                         adaptiveViewModel.resetState()
                         MapeKLog.state("adaptive state reset")
                         scope.launch {
-                            AppContainer.database.experimentDao().markParticipantSessionEnded(session.sessionId, System.currentTimeMillis(), false)
                             AppContainer.experimentPreferences.clearActiveSessionPreferences()
                             knowledge.clearCurrentTaskAdaptationMemory()
                             MapeKLog.experiment("active session cleared from DataStore")
@@ -646,8 +741,7 @@ fun AppNavHost(
                             val next = completed.moveToNextCondition()
                             sessionState = next
                             conditionTransitionState = null
-                            adaptiveViewModel.resetState()
-                            adaptiveViewModel.setAdaptiveMode(next.currentCondition == ExperimentCondition.SELF_ADAPTIVE_UI)
+                            applyProfileToAdaptiveState(next)
                             scope.launch { AppContainer.experimentPreferences.saveSession(next) }
                             log(next.logEntry(InteractionEventType.CONDITION_STARTED, screenId = ScreenId.HOME, message = "Stage ${next.currentConditionIndex + 1} started."))
                             MapeKLog.experiment("moving to next condition next=${next.currentCondition}")
@@ -700,12 +794,14 @@ fun AppNavHost(
                     val current = sessionState
                     if (current != null) {
                         scope.launch {
+                            MapeKLog.stage("SECURITY", "delete requested type=CURRENT_SESSION")
+                            MapeKLog.stage("SECURITY", "pin validation result=SUCCESS")
                             AppContainer.database.experimentDao().deleteSessionCascade(current.sessionId)
                             AppContainer.experimentPreferences.clearActiveSessionPreferences()
                             knowledge.clearCurrentTaskAdaptationMemory()
                             sessionState = null
                             adaptiveViewModel.resetState()
-                            MapeKLog.knowledge("delete current session sessionId=${current.sessionId}")
+                            MapeKLog.knowledge("delete current session completed sessionId=${current.sessionId}")
                             navController.navigate(AppRoute.ExperimentSetup.route) {
                                 popUpTo(navController.graph.startDestinationId) { inclusive = true }
                                 launchSingleTop = true
@@ -716,7 +812,9 @@ fun AppNavHost(
                 },
                 onDeleteAllResearchData = {
                     scope.launch {
-                        AppContainer.database.experimentDao().clearAll()
+                        MapeKLog.stage("SECURITY", "delete requested type=ALL_RESEARCH_DATA")
+                        MapeKLog.stage("SECURITY", "pin validation result=SUCCESS")
+                        AppContainer.database.experimentDao().deleteAllResearchData()
                         AppContainer.experimentPreferences.clearActiveSessionPreferences()
                         knowledge.clearCurrentTaskAdaptationMemory()
                         logger.clear()

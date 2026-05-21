@@ -30,22 +30,62 @@ fun MainComposeRule.resetResearchData() {
     }
     AppContainer.knowledgeRepository.clearCurrentTaskAdaptationMemory()
     AppContainer.experimentLogger.clear()
+    activityRule.scenario.recreate()
+    waitForIdle()
 }
 
-fun MainComposeRule.startGroupBSession(participantCode: String) {
-    onNodeWithText("Código de participante").performTextClearance()
-    onNodeWithText("Código de participante").performTextInput(participantCode)
-    onNodeWithText("Grupo B").performScrollTo().performClick()
-    onNodeWithText("Iniciar sesión experimental").performScrollTo().performClick()
-    onNodeWithText("Etapa 1").assertExistsCompat()
+fun MainComposeRule.startGroupBSession(participantCode: String): String {
+    return startSession(participantCode, groupTag = "group_b_option")
 }
 
-fun MainComposeRule.startGroupASession(participantCode: String) {
-    onNodeWithText("Código de participante").performTextClearance()
-    onNodeWithText("Código de participante").performTextInput(participantCode)
-    onNodeWithText("Grupo A").performScrollTo().performClick()
-    onNodeWithText("Iniciar sesión experimental").performScrollTo().performClick()
+fun MainComposeRule.startGroupASession(participantCode: String): String {
+    return startSession(participantCode, groupTag = "group_a_option")
+}
+
+private fun MainComposeRule.startSession(participantCodeSeed: String, groupTag: String): String {
+    val suffix = participantCodeSeed.toFourDigitSuffix()
+    onNodeWithTag("participant_suffix_input").performTextClearance()
+    onNodeWithTag("participant_suffix_input").performTextInput(suffix)
+    onNodeWithTag(groupTag).performScrollTo().performClick()
+    waitUntil(timeoutMillis = 5_000) {
+        onAllNodesWithText("Código generado:", substring = true).fetchSemanticsNodes().isNotEmpty()
+    }
+    onNodeWithTag("continue_button").performScrollTo().performClick()
+    completeInitialProfileIfPresent()
     onNodeWithText("Etapa 1").assertExistsCompat()
+    return "P01-$suffix"
+}
+
+private fun MainComposeRule.completeInitialProfileIfPresent() {
+    waitForIdle()
+    val profileVisible = runCatching {
+        onAllNodesWithText("Perfil inicial").fetchSemanticsNodes().isNotEmpty()
+    }.getOrDefault(false)
+    if (!profileVisible) return
+
+    listOf(
+        "profile_question_1_yes",
+        "profile_question_2_yes",
+        "profile_question_3_yes",
+        "profile_question_4_only_if_needed",
+        "profile_question_5_important_only",
+        "profile_question_6_regular",
+        "profile_question_7_yes",
+        "profile_question_8_important_only"
+    ).forEach { tag ->
+        onNodeWithTag(tag).performScrollTo().performClick()
+    }
+    onNodeWithTag("profile_continue_button").performScrollTo().performClick()
+}
+
+private fun String.toFourDigitSuffix(): String {
+    val digits = filter(Char::isDigit)
+    return if (digits.length >= 4) {
+        digits.takeLast(4)
+    } else {
+        val hash = fold(0) { acc, char -> (acc * 31 + char.code) and 0x7fffffff }
+        (hash % 10_000).toString().padStart(4, '0')
+    }
 }
 
 fun MainComposeRule.openTaskByTitle(title: String) {

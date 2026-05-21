@@ -21,7 +21,8 @@ data class SessionPreferenceSnapshot(
     val currentCondition: String? = null,
     val currentConditionIndex: Int = 0,
     val currentDataSet: String? = null,
-    val isSessionActive: Boolean = false
+    val isSessionActive: Boolean = false,
+    val isProfileCompleted: Boolean = false
 )
 
 class ExperimentPreferences(private val context: Context) {
@@ -33,7 +34,8 @@ class ExperimentPreferences(private val context: Context) {
             currentCondition = prefs[CURRENT_CONDITION],
             currentConditionIndex = prefs[CURRENT_CONDITION_INDEX] ?: 0,
             currentDataSet = prefs[CURRENT_DATA_SET],
-            isSessionActive = prefs[IS_SESSION_ACTIVE] ?: false
+            isSessionActive = prefs[IS_SESSION_ACTIVE] ?: false,
+            isProfileCompleted = prefs[IS_PROFILE_COMPLETED] ?: false
         )
     }
 
@@ -46,6 +48,13 @@ class ExperimentPreferences(private val context: Context) {
             prefs[CURRENT_CONDITION_INDEX] = state.currentConditionIndex
             prefs[CURRENT_DATA_SET] = state.currentDataSet.id
             prefs[IS_SESSION_ACTIVE] = state.isSessionActive
+            prefs[IS_PROFILE_COMPLETED] = state.isProfileCompleted
+        }
+    }
+
+    suspend fun markProfileCompleted() {
+        context.experimentDataStore.edit { prefs ->
+            prefs[IS_PROFILE_COMPLETED] = true
         }
     }
 
@@ -61,6 +70,7 @@ class ExperimentPreferences(private val context: Context) {
             prefs.remove(CURRENT_CONDITION)
             prefs.remove(CURRENT_CONDITION_INDEX)
             prefs.remove(CURRENT_DATA_SET)
+            prefs.remove(IS_PROFILE_COMPLETED)
             prefs[IS_SESSION_ACTIVE] = false
         }
     }
@@ -73,5 +83,6 @@ class ExperimentPreferences(private val context: Context) {
         val CURRENT_CONDITION_INDEX = intPreferencesKey("current_condition_index")
         val CURRENT_DATA_SET = stringPreferencesKey("current_data_set")
         val IS_SESSION_ACTIVE = booleanPreferencesKey("is_session_active")
+        val IS_PROFILE_COMPLETED = booleanPreferencesKey("is_profile_completed")
     }
 }

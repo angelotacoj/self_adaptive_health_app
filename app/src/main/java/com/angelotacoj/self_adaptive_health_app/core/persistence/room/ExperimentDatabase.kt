@@ -13,7 +13,8 @@ import androidx.room.RoomDatabase
         AdaptationEventEntity::class,
         UserDecisionEventEntity::class,
         AdaptationPreferenceEntity::class,
-        TaskStateEntity::class
+        TaskStateEntity::class,
+        InitialUserProfileEntity::class
     ],
     version = 1,
     exportSchema = false

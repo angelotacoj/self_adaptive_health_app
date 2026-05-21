@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -27,8 +26,9 @@ import com.angelotacoj.self_adaptive_health_app.core.model.completedTaskCount
 import com.angelotacoj.self_adaptive_health_app.core.model.totalRequiredTaskRuns
 import com.angelotacoj.self_adaptive_health_app.di.AppContainer
 import com.angelotacoj.self_adaptive_health_app.core.ui.LargeDestructiveButton
-import com.angelotacoj.self_adaptive_health_app.core.ui.LargeSecondaryButton
 import com.angelotacoj.self_adaptive_health_app.core.ui.ScreenContainer
+import com.angelotacoj.self_adaptive_health_app.core.security.ResearcherPinDialog
+import com.angelotacoj.self_adaptive_health_app.core.persistence.room.InitialUserProfileEntity
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -44,12 +44,27 @@ fun DebugLogsScreen(
     var logs by remember { mutableStateOf(logger.getLogs().asReversed()) }
     var roomRows by remember { mutableStateOf<List<String>>(emptyList()) }
     var counts by remember { mutableStateOf("Cargando conteos...") }
-    var confirmDeleteCurrent by remember { mutableStateOf(false) }
-    var confirmDeleteAll by remember { mutableStateOf(false) }
+    var pendingDelete by remember { mutableStateOf<ResearcherDeleteAction?>(null) }
+    var profile by remember { mutableStateOf<InitialUserProfileEntity?>(null) }
+    var adaptationSummary by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
 
     suspend fun refreshRoomSummary() {
         val dao = AppContainer.database.experimentDao()
-        val activeSessionId = session?.sessionId
+                val activeSessionId = session?.sessionId
+        if (activeSessionId != null) {
+            profile = dao.getInitialUserProfile(activeSessionId)
+            
+            // Adaptation summary by AR rule
+            val ads = dao.recentAdaptationEventsForSession(activeSessionId)
+            val summary = mutableMapOf<String, Int>()
+            ads.forEach {
+                if (it.applied) summary[it.ruleId] = (summary[it.ruleId] ?: 0) + 1
+            }
+            adaptationSummary = summary
+        } else {
+            profile = null
+            adaptationSummary = emptyMap()
+        }
         val interactions = if (activeSessionId != null) {
             dao.recentInteractionEventsForSession(activeSessionId)
         } else {
@@ -84,32 +99,16 @@ fun DebugLogsScreen(
         refreshRoomSummary()
     }
 
-    if (confirmDeleteCurrent) {
-        AlertDialog(
-            onDismissRequest = { confirmDeleteCurrent = false },
-            title = { Text("Borrar sesión actual") },
-            text = { Text("Esta acción eliminará los registros de la sesión actual en este dispositivo.") },
-            confirmButton = {
-                LargeDestructiveButton("Borrar sesión actual", {
-                    confirmDeleteCurrent = false
-                    onDeleteCurrentSession()
-                })
+    pendingDelete?.let { action ->
+        ResearcherPinDialog(
+            onConfirm = {
+                pendingDelete = null
+                when (action) {
+                    ResearcherDeleteAction.CurrentSession -> onDeleteCurrentSession()
+                    ResearcherDeleteAction.AllResearchData -> onDeleteAllResearchData()
+                }
             },
-            dismissButton = { LargeSecondaryButton("Cancelar", { confirmDeleteCurrent = false }) }
-        )
-    }
-    if (confirmDeleteAll) {
-        AlertDialog(
-            onDismissRequest = { confirmDeleteAll = false },
-            title = { Text("Borrar todos los registros") },
-            text = { Text("Esta acción eliminará todos los registros de investigación de este dispositivo.") },
-            confirmButton = {
-                LargeDestructiveButton("Borrar todos los registros", {
-                    confirmDeleteAll = false
-                    onDeleteAllResearchData()
-                })
-            },
-            dismissButton = { LargeSecondaryButton("Cancelar", { confirmDeleteAll = false }) }
+            onCancel = { pendingDelete = null }
         )
     }
 
@@ -130,7 +129,35 @@ fun DebugLogsScreen(
             Text(text = "Session ID: ${session?.sessionId ?: "No aplica"}")
             Text(text = "Grupo: ${session?.group?.label ?: "Ninguno"}")
             Text(text = "Condición actual: ${session?.currentCondition ?: "Ninguna"}")
+                        Text(text = "Estado: ${if (session?.isSessionActive == true) "Activa" else "Completada/Cancelada"}")
+            Text(text = "Perfil completado: ${if (session?.isProfileCompleted == true) "Sí" else "No"}")
             Text(text = "Total completado: ${session?.completedTaskCount() ?: 0}/${session?.totalRequiredTaskRuns() ?: 0}")
+        }
+
+        
+        ResearcherSectionCard("Resumen del perfil inicial") {
+            if (profile != null) {
+                Text("Textos grandes: ${profile!!.prefersLargeText}")
+                Text("Botones grandes: ${profile!!.prefersLargeButtons}")
+                Text("Etiquetas de iconos: ${profile!!.prefersIconLabels}")
+                Text("Guía paso a paso: ${profile!!.prefersGuidedSteps}")
+                Text("Confirmaciones: ${profile!!.prefersConfirmations}")
+                Text("Comodidad móvil: ${profile!!.mobileComfortLevel}")
+                Text("Ejemplos de errores: ${profile!!.prefersErrorExamples}")
+                Text("Aviso de adaptación: ${profile!!.prefersAdaptationPrompt}")
+            } else {
+                Text("No hay perfil registrado para esta sesión.")
+            }
+        }
+
+        ResearcherSectionCard("Resumen de adaptaciones (Aplicadas)") {
+            if (adaptationSummary.isEmpty()) {
+                Text("Ninguna adaptación aplicada.")
+            } else {
+                adaptationSummary.forEach { (rule, count) ->
+                    Text("$rule: $count vez/veces")
+                }
+            }
         }
 
         ResearcherSectionCard("Registro en DB") {
@@ -159,9 +186,14 @@ fun DebugLogsScreen(
             }
         }
 
-        LargeDestructiveButton("Borrar sesión actual", { confirmDeleteCurrent = true })
-        LargeDestructiveButton("Borrar todos los registros", { confirmDeleteAll = true })
+        LargeDestructiveButton("Borrar sesión actual", { pendingDelete = ResearcherDeleteAction.CurrentSession })
+        LargeDestructiveButton("Borrar todos los registros", { pendingDelete = ResearcherDeleteAction.AllResearchData })
     }
+}
+
+private enum class ResearcherDeleteAction {
+    CurrentSession,
+    AllResearchData
 }
 
 @Composable

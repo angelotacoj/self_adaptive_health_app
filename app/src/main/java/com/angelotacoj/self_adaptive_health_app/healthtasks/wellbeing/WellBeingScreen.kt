@@ -66,7 +66,7 @@ fun WellBeingScreen(
                 onApplyAdaptation()
                 if (state.step == WellBeingStep.Review) {
                     onAction(WellBeingAction.SaveClicked)
-                    onLog(InteractionEventType.TASK_COMPLETED, ScreenId.WELL_BEING_SUCCESS, "T2 completed.")
+                    onLog(InteractionEventType.TASK_COMPLETED, ScreenId.WELL_BEING_SUCCESS, "T3 completed.")
                 }
             },
             onEdit = { onAction(WellBeingAction.EditClicked) },
@@ -148,7 +148,7 @@ fun WellBeingScreen(
                         val requiresValidation = onAdaptiveEvent(AdaptiveInteractionEventType.SENSITIVE_ACTION, screenId)
                         if (!requiresValidation) {
                             onAction(WellBeingAction.SaveClicked)
-                            onLog(InteractionEventType.TASK_COMPLETED, ScreenId.WELL_BEING_SUCCESS, "T2 completed.")
+                            onLog(InteractionEventType.TASK_COMPLETED, ScreenId.WELL_BEING_SUCCESS, "T3 completed.")
                         }
                     },
                     secondaryText = "Editar",

@@ -12,7 +12,12 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.angelotacoj.self_adaptive_health_app.core.model.ExperimentGroup
@@ -24,10 +29,12 @@ import com.angelotacoj.self_adaptive_health_app.core.ui.LargeSecondaryButton
 import com.angelotacoj.self_adaptive_health_app.core.ui.LargeDestructiveButton
 import com.angelotacoj.self_adaptive_health_app.core.ui.ScreenContainer
 import com.angelotacoj.self_adaptive_health_app.core.ui.SimulatedDataNoticeCard
+import com.angelotacoj.self_adaptive_health_app.core.security.ResearcherPinDialog
 
 @Composable
 fun ExperimentSetupScreen(
     state: ExperimentSetupState,
+    generatedParticipantCode: String?,
     existingSessionMessage: String?,
     onAction: (ExperimentSetupAction) -> ExperimentSetupEvent?,
     onStartSession: (ExperimentSession) -> Unit,
@@ -36,6 +43,16 @@ fun ExperimentSetupScreen(
     onDeleteExistingSession: () -> Unit,
     onOpenResearcherPanel: () -> Unit
 ) {
+    var showDeletePinDialog by remember { mutableStateOf(false) }
+    if (showDeletePinDialog) {
+        ResearcherPinDialog(
+            onConfirm = {
+                showDeletePinDialog = false
+                onDeleteExistingSession()
+            },
+            onCancel = { showDeletePinDialog = false }
+        )
+    }
     ScreenContainer(
         title = "Configuración AURA",
         subtitle = "Preparación de la sesión experimental",
@@ -51,18 +68,20 @@ fun ExperimentSetupScreen(
         InstructionCard(
             title = "Antes de empezar",
             instructions = listOf(
-                "Ingrese el código asignado por el investigador.",
+                "Ingrese los últimos 4 dígitos del DNI o un código asignado de 4 caracteres.",
                 "Seleccione el grupo experimental para cargar los datos ficticios correctos.",
                 "No ingrese información real de salud."
             )
         )
 
         OutlinedTextField(
-            value = state.participantCode,
-            onValueChange = { onAction(ExperimentSetupAction.ParticipantCodeChanged(it)) },
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text("Código de participante") },
-            supportingText = { Text("Ejemplo: P01 o 72891968") },
+            value = state.participantSuffix,
+            onValueChange = { onAction(ExperimentSetupAction.ParticipantSuffixChanged(it)) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("participant_suffix_input"),
+            label = { Text("Últimos 4 dígitos del DNI o código asignado") },
+            supportingText = { Text("Se aceptan 4 caracteres alfanuméricos. No ingrese el DNI completo.") },
             textStyle = MaterialTheme.typography.titleLarge,
             singleLine = true,
             shape = MaterialTheme.shapes.large,
@@ -71,6 +90,14 @@ fun ExperimentSetupScreen(
                 unfocusedContainerColor = MaterialTheme.colorScheme.surface
             )
         )
+
+        if (generatedParticipantCode != null && state.participantSuffix.length == 4) {
+            Text(
+                text = "Código generado: $generatedParticipantCode",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
 
         Text(
             text = "Seleccione el grupo experimental",
@@ -82,7 +109,14 @@ fun ExperimentSetupScreen(
                 val selected = state.selectedGroup == group
                 ElevatedCard(
                     onClick = { onAction(ExperimentSetupAction.GroupSelected(group)) },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag(
+                            when (group) {
+                                ExperimentGroup.GroupA -> "group_a_option"
+                                ExperimentGroup.GroupB -> "group_b_option"
+                            }
+                        ),
                     shape = MaterialTheme.shapes.extraLarge,
                     colors = CardDefaults.elevatedCardColors(
                         containerColor = if (selected) {
@@ -141,14 +175,18 @@ fun ExperimentSetupScreen(
             )
             LargePrimaryButton("Continuar sesión existente", onContinueExistingSession)
             LargeSecondaryButton("Iniciar nueva sesión", onStartNewSession)
-            LargeDestructiveButton("Borrar sesión anterior", onDeleteExistingSession)
+            LargeDestructiveButton("Borrar sesión anterior", { showDeletePinDialog = true })
         } else {
             LargePrimaryButton(
                 text = "Iniciar sesión experimental",
+                modifier = Modifier.testTag("continue_button"),
                 onClick = {
                     val event = onAction(ExperimentSetupAction.StartSessionClicked)
                     if (event is ExperimentSetupEvent.StartSession) {
-                        onStartSession(event.session)
+                        val code = generatedParticipantCode
+                        if (code != null) {
+                            onStartSession(ExperimentSession(participantCode = code, group = event.group))
+                        }
                     }
                 }
             )

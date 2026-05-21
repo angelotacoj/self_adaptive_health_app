@@ -62,10 +62,10 @@ class ExperimentalFlowEndToEndTest {
 
     @Test
     fun activeSession_persistsInRoomAndDataStoreForRecovery() {
-        composeRule.startGroupASession("E2E_RESTORE_001")
+        val participantCode = composeRule.startGroupASession("E2E_RESTORE_001")
         composeRule.completeT1Access(userCode = "PACIENTE01", pin = "1234", selfAdaptive = false)
         composeRule.assertRoomCompletionCounts(total = 1, static = 1, selfAdaptive = 0)
-        composeRule.assertActiveSessionSnapshot(participantCode = "E2E_RESTORE_001")
+        composeRule.assertActiveSessionSnapshot(participantCode = participantCode)
         composeRule.assertTextExists("Etapa 1")
         composeRule.onNodeWithText("T1 Acceder con código/PIN simulado").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithTag("start_t1_access").performScrollTo().assertIsNotEnabled()

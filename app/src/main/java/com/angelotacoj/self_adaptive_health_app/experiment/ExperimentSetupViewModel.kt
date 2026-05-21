@@ -2,13 +2,12 @@ package com.angelotacoj.self_adaptive_health_app.experiment
 
 import androidx.lifecycle.ViewModel
 import com.angelotacoj.self_adaptive_health_app.core.model.ExperimentGroup
-import com.angelotacoj.self_adaptive_health_app.core.model.ExperimentSession
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 data class ExperimentSetupState(
-    val participantCode: String = "",
+    val participantSuffix: String = "",
     val selectedGroup: ExperimentGroup = ExperimentGroup.GroupA,
     val errorMessage: String? = null
 ) {
@@ -16,13 +15,13 @@ data class ExperimentSetupState(
 }
 
 sealed interface ExperimentSetupAction {
-    data class ParticipantCodeChanged(val value: String) : ExperimentSetupAction
+    data class ParticipantSuffixChanged(val value: String) : ExperimentSetupAction
     data class GroupSelected(val group: ExperimentGroup) : ExperimentSetupAction
     data object StartSessionClicked : ExperimentSetupAction
 }
 
 sealed interface ExperimentSetupEvent {
-    data class StartSession(val session: ExperimentSession) : ExperimentSetupEvent
+    data class StartSession(val suffix: String, val group: ExperimentGroup) : ExperimentSetupEvent
 }
 
 class ExperimentSetupViewModel : ViewModel() {
@@ -31,8 +30,12 @@ class ExperimentSetupViewModel : ViewModel() {
 
     fun onAction(action: ExperimentSetupAction): ExperimentSetupEvent? {
         return when (action) {
-            is ExperimentSetupAction.ParticipantCodeChanged -> {
-                _state.value = _state.value.copy(participantCode = action.value.uppercase(), errorMessage = null)
+            is ExperimentSetupAction.ParticipantSuffixChanged -> {
+                val suffix = action.value
+                    .uppercase()
+                    .filter { it.isLetterOrDigit() }
+                    .take(4)
+                _state.value = _state.value.copy(participantSuffix = suffix, errorMessage = null)
                 null
             }
 
@@ -42,16 +45,14 @@ class ExperimentSetupViewModel : ViewModel() {
             }
 
             ExperimentSetupAction.StartSessionClicked -> {
-                val cleanCode = _state.value.participantCode.trim()
-                if (cleanCode.isBlank()) {
-                    _state.value = _state.value.copy(errorMessage = "Ingrese un código de participante, por ejemplo P01.")
+                val suffix = _state.value.participantSuffix.trim()
+                if (suffix.length != 4 || !suffix.all { it.isLetterOrDigit() }) {
+                    _state.value = _state.value.copy(errorMessage = "Ingrese exactamente 4 caracteres alfanuméricos.")
                     null
                 } else {
                     ExperimentSetupEvent.StartSession(
-                        ExperimentSession(
-                            participantCode = cleanCode,
-                            group = _state.value.selectedGroup
-                        )
+                        suffix = suffix,
+                        group = _state.value.selectedGroup
                     )
                 }
             }

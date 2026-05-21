@@ -95,3 +95,18 @@ data class UserDecisionEventEntity(
     val decision: String,
     val timestamp: Long
 )
+
+@Entity(tableName = "initial_user_profiles")
+data class InitialUserProfileEntity(
+    @PrimaryKey val sessionId: String,
+    val participantCode: String,
+    val prefersLargeText: String,
+    val prefersLargeButtons: String,
+    val prefersIconLabels: String,
+    val prefersGuidedSteps: String,
+    val prefersConfirmations: String,
+    val mobileComfortLevel: String,
+    val prefersErrorExamples: String,
+    val prefersAdaptationPrompt: String,
+    val timestamp: Long
+)

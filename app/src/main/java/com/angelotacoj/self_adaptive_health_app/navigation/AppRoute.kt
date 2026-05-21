@@ -2,6 +2,7 @@ package com.angelotacoj.self_adaptive_health_app.navigation
 
 sealed class AppRoute(val route: String) {
     data object ExperimentSetup : AppRoute("experiment_setup")
+    data object InitialProfile : AppRoute("initial_profile")
     data object Home : AppRoute("home")
     data object Access : AppRoute("access")
     data object Appointments : AppRoute("appointments")

@@ -6,6 +6,7 @@ import com.angelotacoj.self_adaptive_health_app.core.logging.DebugLogEntry
 import com.angelotacoj.self_adaptive_health_app.core.logging.ScreenId
 import com.angelotacoj.self_adaptive_health_app.core.logging.TaskId
 import com.angelotacoj.self_adaptive_health_app.core.persistence.room.AdaptationEventEntity
+import com.angelotacoj.self_adaptive_health_app.core.persistence.room.InitialUserProfileEntity
 import com.angelotacoj.self_adaptive_health_app.core.persistence.room.TaskStateEntity
 import com.angelotacoj.self_adaptive_health_app.core.persistence.room.UserDecisionEventEntity
 
@@ -25,6 +26,7 @@ interface KnowledgeRepository {
     fun clearCurrentTaskAdaptationMemory()
     suspend fun markUndone(adaptationEventId: String)
     suspend fun saveTaskState(entity: TaskStateEntity)
+    suspend fun saveInitialUserProfile(entity: InitialUserProfileEntity)
     suspend fun getTaskState(taskId: TaskId, screenId: ScreenId): TaskStateEntity?
 }
 
@@ -90,4 +92,5 @@ open class InMemoryKnowledgeRepository : KnowledgeRepository {
     override suspend fun markUndone(adaptationEventId: String) {}
     override suspend fun saveTaskState(entity: TaskStateEntity) {}
     override suspend fun getTaskState(taskId: TaskId, screenId: ScreenId): TaskStateEntity? = null
+    override suspend fun saveInitialUserProfile(entity: InitialUserProfileEntity) {}
 }

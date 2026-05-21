@@ -44,6 +44,10 @@ class AdaptiveViewModel(
     fun setAdaptiveMode(isAdaptive: Boolean) {
         _uiState.update { it.copy(isAdaptiveMode = isAdaptive) }
     }
+
+    fun updateStateFromProfile(newState: AdaptiveUiState) {
+        _uiState.value = newState
+    }
     
     fun resetState() {
         _uiState.value = AdaptiveUiState()
