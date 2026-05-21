@@ -73,7 +73,7 @@ class AppointmentViewModel : ViewModel() {
             }
             AppointmentAction.BackClicked -> {
                 when (current.step) {
-                    AppointmentStep.Overview -> AppointmentEvent.ExitTask
+                    AppointmentStep.Overview -> return AppointmentEvent.ExitTask
                     AppointmentStep.List -> _state.value = current.copy(step = AppointmentStep.Overview)
                     AppointmentStep.Detail -> _state.value = current.copy(step = AppointmentStep.List)
                     AppointmentStep.Confirmation -> _state.value = current.copy(step = AppointmentStep.Detail)

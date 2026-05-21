@@ -78,7 +78,7 @@ class ReminderViewModel : ViewModel() {
             }
             ReminderAction.BackClicked -> {
                 when (current.step) {
-                    ReminderStep.Intro -> ReminderEvent.ExitTask
+                    ReminderStep.Intro -> return ReminderEvent.ExitTask
                     ReminderStep.SelectActivity -> _state.value = current.copy(step = ReminderStep.Intro)
                     ReminderStep.SelectTime -> _state.value = current.copy(step = ReminderStep.SelectActivity)
                     ReminderStep.SelectFrequency -> _state.value = current.copy(step = ReminderStep.SelectTime)
