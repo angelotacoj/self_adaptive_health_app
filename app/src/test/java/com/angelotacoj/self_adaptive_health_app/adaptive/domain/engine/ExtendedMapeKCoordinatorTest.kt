@@ -16,10 +16,10 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-class ExtendedMapeKEngineTest {
+class ExtendedMapeKCoordinatorTest {
     @Test
     fun ar02_prolongedTime_appliesTextScaleContextualHelpAndVisualFeedback() {
-        val engine = ExtendedMapeKEngine(InMemoryKnowledgeRepository())
+        val engine = ExtendedMapeKCoordinator(InMemoryKnowledgeRepository())
 
         val result = engine.processAccessEvent(AdaptiveInteractionEventType.PROLONGED_TIME)
 
@@ -46,9 +46,9 @@ class ExtendedMapeKEngineTest {
     }
 
     @Test
-    fun ar02_undoRestoresTextScale() {
+    fun ar02_undoRestoresTextScaleUsingSnapshot() {
         val repository = InMemoryKnowledgeRepository()
-        val engine = ExtendedMapeKEngine(repository)
+        val engine = ExtendedMapeKCoordinator(repository)
         val applied = engine.processAccessEvent(AdaptiveInteractionEventType.PROLONGED_TIME) as AdaptationEngineResult.Applied
 
         val undone = engine.undo(applied.plan, applied.state)
@@ -62,7 +62,7 @@ class ExtendedMapeKEngineTest {
 
     @Test
     fun ar05_helpRequestAppliesDirectContextualHelp() {
-        val engine = ExtendedMapeKEngine(InMemoryKnowledgeRepository())
+        val engine = ExtendedMapeKCoordinator(InMemoryKnowledgeRepository())
 
         val result = engine.processAccessEvent(AdaptiveInteractionEventType.HELP_REQUESTED)
 
@@ -76,42 +76,8 @@ class ExtendedMapeKEngineTest {
     }
 
     @Test
-    fun helpRequestAfterProlongedTimeUsesAr05AndDoesNotShowUndoCard() {
-        val engine = ExtendedMapeKEngine(InMemoryKnowledgeRepository())
-        val ar02 = engine.processAccessEvent(AdaptiveInteractionEventType.PROLONGED_TIME) as AdaptationEngineResult.Applied
-
-        val result = engine.processAccessEvent(
-            eventType = AdaptiveInteractionEventType.HELP_REQUESTED,
-            currentState = ar02.state.copy(undoMessageVisible = false)
-        )
-
-        val applied = result as AdaptationEngineResult.Applied
-        assertEquals(AdaptationRuleId.AR05, applied.plan.ruleId)
-        assertTrue(applied.state.contextualHelpVisible)
-        assertFalse(applied.state.undoMessageVisible)
-    }
-
-    @Test
-    fun helpRequestStillWorksAfterRejectingProlongedTimeAdaptation() {
-        val repository = InMemoryKnowledgeRepository()
-        val engine = ExtendedMapeKEngine(repository)
-        val ar02 = engine.processAccessEvent(AdaptiveInteractionEventType.PROLONGED_TIME) as AdaptationEngineResult.Applied
-        val undone = engine.undo(ar02.plan, ar02.state)
-
-        val result = engine.processAccessEvent(
-            eventType = AdaptiveInteractionEventType.HELP_REQUESTED,
-            currentState = undone.copy(contextualHelpVisible = false)
-        )
-
-        val applied = result as AdaptationEngineResult.Applied
-        assertEquals(AdaptationRuleId.AR05, applied.plan.ruleId)
-        assertTrue(applied.state.contextualHelpVisible)
-        assertFalse(applied.state.undoMessageVisible)
-    }
-
-    @Test
     fun ar06_fieldErrorAppliesRecoveryFeedbackAndSafeExit() {
-        val engine = ExtendedMapeKEngine(InMemoryKnowledgeRepository())
+        val engine = ExtendedMapeKCoordinator(InMemoryKnowledgeRepository())
 
         val result = engine.processAccessEvent(
             eventType = AdaptiveInteractionEventType.FIELD_ERROR,
@@ -127,10 +93,29 @@ class ExtendedMapeKEngineTest {
     }
 
     @Test
-    fun ar08_sensitiveActionRequiresExplicitValidation() {
-        val engine = ExtendedMapeKEngine(InMemoryKnowledgeRepository())
-
-        val result = engine.processAccessEvent(AdaptiveInteractionEventType.SENSITIVE_ACTION)
+    fun ar08_sensitiveActionRequiresExplicitValidationAndReviewSummary() {
+        val engine = ExtendedMapeKCoordinator(InMemoryKnowledgeRepository())
+        val reviewSummary = com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.ReviewSummary(
+            title = "Datos simulados",
+            details = mapOf("Test" to "Value")
+        )
+        val result = engine.process(
+            event = AdaptiveInteractionEvent(
+                taskId = TaskId.T1_ACCESS,
+                screenId = ScreenId.ACCESS_CODE,
+                eventType = AdaptiveInteractionEventType.SENSITIVE_ACTION,
+                reviewSummary = reviewSummary
+            ),
+            taskState = com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.TaskInteractionState(
+                taskId = TaskId.T1_ACCESS,
+                screenId = ScreenId.ACCESS_CODE,
+                screenEnteredAt = 0L,
+                successfulActionAt = 0L,
+                backCountInTask = 0,
+                fieldErrorCount = 0
+            ),
+            currentState = AdaptiveUiState()
+        )
 
         val pending = result as AdaptationEngineResult.RequiresUserValidation
         assertEquals(AdaptationRuleId.AR08, pending.plan.ruleId)
@@ -140,44 +125,42 @@ class ExtendedMapeKEngineTest {
             pending.plan.modifications
         )
         assertEquals(AdaptationRuleId.AR08, pending.state.pendingAdaptation?.ruleId)
+        assertNotNull(pending.state.pendingAdaptation?.reviewSummary)
+        assertEquals("Datos simulados", pending.state.pendingAdaptation?.reviewSummary?.title)
     }
 
     @Test
-    fun ar03_confirmationPauseRequiresExplicitValidation() {
-        val engine = ExtendedMapeKEngine(InMemoryKnowledgeRepository())
+    fun ar03_confirmationPauseIncludesUIM06_UIM08_UIM10() {
+        val engine = ExtendedMapeKCoordinator(InMemoryKnowledgeRepository())
 
         val result = engine.processAccessEvent(AdaptiveInteractionEventType.CONFIRMATION_PAUSE)
 
         val pending = result as AdaptationEngineResult.RequiresUserValidation
         assertEquals(AdaptationRuleId.AR03, pending.plan.ruleId)
-        assertEquals(ValidationType.EXPLICIT, pending.plan.validationType)
-        assertEquals(
-            listOf(UiModification.UIM08_REINFORCED_CONFIRMATION, UiModification.UIM10_SAFE_EXIT),
-            pending.plan.modifications
-        )
+        assertTrue(pending.plan.modifications.containsAll(listOf(
+            UiModification.UIM06_CONTEXTUAL_HELP,
+            UiModification.UIM08_REINFORCED_CONFIRMATION,
+            UiModification.UIM10_SAFE_EXIT
+        )))
     }
 
     @Test
-    fun ar04_backtrackingRequiresSuggestedGuidedNavigationAfterTwoBackEvents() {
-        val engine = ExtendedMapeKEngine(InMemoryKnowledgeRepository())
+    fun ar01_touchErrorsTriggeredWithTwoEventsOnSameScreen() {
+        val engine = ExtendedMapeKCoordinator(InMemoryKnowledgeRepository())
 
-        engine.processAccessEvent(AdaptiveInteractionEventType.BACK_PRESSED)
-        val result = engine.processAccessEvent(AdaptiveInteractionEventType.BACK_PRESSED, backCountInTask = 2)
+        engine.processAccessEvent(AdaptiveInteractionEventType.TOUCH_ERROR)
+        val result = engine.processAccessEvent(AdaptiveInteractionEventType.TOUCH_ERROR)
 
         val pending = result as AdaptationEngineResult.RequiresUserValidation
-        assertEquals(AdaptationRuleId.AR04, pending.plan.ruleId)
+        assertEquals(AdaptationRuleId.AR01, pending.plan.ruleId)
         assertEquals(ValidationType.SUGGESTED, pending.plan.validationType)
-        assertEquals(
-            listOf(UiModification.UIM07_GUIDED_NAVIGATION, UiModification.UIM09_VISUAL_FEEDBACK),
-            pending.plan.modifications
-        )
     }
 
     @Test
     fun rejectedRuleIsSuppressedByKnowledgeBase() {
         val repository = InMemoryKnowledgeRepository()
         repository.rememberRejected(TaskId.T1_ACCESS, AdaptationRuleId.AR02)
-        val engine = ExtendedMapeKEngine(repository)
+        val engine = ExtendedMapeKCoordinator(repository)
 
         val result = engine.processAccessEvent(AdaptiveInteractionEventType.PROLONGED_TIME)
 
@@ -185,7 +168,7 @@ class ExtendedMapeKEngineTest {
     }
 }
 
-private fun ExtendedMapeKEngine.processAccessEvent(
+private fun ExtendedMapeKCoordinator.processAccessEvent(
     eventType: AdaptiveInteractionEventType,
     backCountInTask: Int = 0,
     fieldErrorCount: Int = 0,

@@ -25,7 +25,7 @@ fun SummaryScreen(
     state: SummaryState,
     onAction: (SummaryAction) -> SummaryEvent?,
     onLog: (InteractionEventType, ScreenId, String) -> Unit,
-    onAdaptiveEvent: (AdaptiveInteractionEventType, ScreenId) -> Boolean,
+    onAdaptiveEvent: (AdaptiveInteractionEventType, ScreenId, com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.ReviewSummary?) -> Boolean,
     onApplyAdaptation: () -> Unit,
     onRejectAdaptation: () -> Unit,
     onUndoAdaptation: () -> Unit,
@@ -34,21 +34,21 @@ fun SummaryScreen(
 ) {
     val screenId = state.step.toScreenId()
     BackHandler {
-        onAdaptiveEvent(AdaptiveInteractionEventType.BACK_PRESSED, screenId)
+        onAdaptiveEvent(AdaptiveInteractionEventType.BACK_PRESSED, screenId, null)
         if (onAction(SummaryAction.BackClicked) is SummaryEvent.ExitTask) onExit()
     }
     LaunchedEffect(screenId) {
         onLog(InteractionEventType.SCREEN_ENTERED, screenId, "Summary step entered: $screenId.")
         if (AdaptiveTiming.prolongedTimeDetectionEnabled) {
             delay(AdaptiveTiming.THRESHOLD_SHORT)
-            onAdaptiveEvent(AdaptiveInteractionEventType.PROLONGED_TIME, ScreenId.SUMMARY_INTRO)
+            onAdaptiveEvent(AdaptiveInteractionEventType.PROLONGED_TIME, ScreenId.SUMMARY_INTRO, null)
         }
     }
     if (state.step == SummaryStep.ReinforcedConfirmation) {
         LaunchedEffect(screenId) {
             delay(12_000)
             onLog(InteractionEventType.CONFIRMATION_PAUSE, screenId, "Confirmation pause reached 12 seconds.")
-            onAdaptiveEvent(AdaptiveInteractionEventType.CONFIRMATION_PAUSE, screenId)
+            onAdaptiveEvent(AdaptiveInteractionEventType.CONFIRMATION_PAUSE, screenId, null)
         }
     }
 
@@ -57,7 +57,7 @@ fun SummaryScreen(
         subtitle = "Revise la información simulada antes de cualquier confirmación final.",
         navigationLabel = "Volver",
         onNavigationClick = {
-            onAdaptiveEvent(AdaptiveInteractionEventType.BACK_PRESSED, screenId)
+            onAdaptiveEvent(AdaptiveInteractionEventType.BACK_PRESSED, screenId, null)
             if (onAction(SummaryAction.BackClicked) is SummaryEvent.ExitTask) onExit()
         },
         adaptiveUiState = state.adaptiveUiState
@@ -89,7 +89,7 @@ fun SummaryScreen(
                 InstructionCard("Instrucciones de la tarea", listOf("Revise el acceso y el recordatorio simulados.", "Guardar requiere una confirmación reforzada."))
                 LargePrimaryButton("Revisar detalles", { onAction(SummaryAction.StartReviewClicked) }, adaptiveUiState = state.adaptiveUiState)
                 if (state.adaptiveUiState.isAdaptiveMode) {
-                    LargeSecondaryButton("Necesito ayuda", { onAdaptiveEvent(AdaptiveInteractionEventType.HELP_REQUESTED, screenId) }, adaptiveUiState = state.adaptiveUiState)
+                    LargeSecondaryButton("Necesito ayuda", { onAdaptiveEvent(AdaptiveInteractionEventType.HELP_REQUESTED, screenId, null) }, adaptiveUiState = state.adaptiveUiState)
                 }
             }
             SummaryStep.Details -> {
@@ -105,13 +105,20 @@ fun SummaryScreen(
                     "Guardar información",
                     {
                         onLog(InteractionEventType.SENSITIVE_ACTION, screenId, "Save information clicked for simulated summary.")
-                        val requiresValidation = onAdaptiveEvent(AdaptiveInteractionEventType.SENSITIVE_ACTION, screenId)
+                        val summaryData = com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.ReviewSummary(
+                            title = "Datos simulados",
+                            details = mapOf(
+                                "Acceso" to "Código ${state.dataSet.accessCredentials.userCode}",
+                                "Recordatorio" to state.dataSet.reminder.time
+                            )
+                        )
+                        val requiresValidation = onAdaptiveEvent(AdaptiveInteractionEventType.SENSITIVE_ACTION, screenId, summaryData)
                         if (!requiresValidation) onAction(SummaryAction.SaveInformationClicked)
                     },
                     adaptiveUiState = state.adaptiveUiState
                 )
                 if (state.adaptiveUiState.isAdaptiveMode) {
-                    LargeSecondaryButton("Necesito ayuda", { onAdaptiveEvent(AdaptiveInteractionEventType.HELP_REQUESTED, screenId) }, adaptiveUiState = state.adaptiveUiState)
+                    LargeSecondaryButton("Necesito ayuda", { onAdaptiveEvent(AdaptiveInteractionEventType.HELP_REQUESTED, screenId, null) }, adaptiveUiState = state.adaptiveUiState)
                 }
             }
             SummaryStep.ReinforcedConfirmation -> {
@@ -126,7 +133,7 @@ fun SummaryScreen(
                     secondaryText = "Editar",
                     onSecondary = { onAction(SummaryAction.EditClicked) }
                 )
-                LargeSecondaryButton("Cancelar", { onAction(SummaryAction.CancelClicked); onLog(InteractionEventType.TASK_COMPLETED, ScreenId.SUMMARY_FINAL, "T4 completed with cancel.") }, adaptiveUiState = state.adaptiveUiState)
+                LargeSecondaryButton("Cancelar", { onAction(SummaryAction.CancelClicked); onLog(InteractionEventType.TASK_COMPLETED, ScreenId.SUMMARY_FINAL, "T5 completed with cancel.") }, adaptiveUiState = state.adaptiveUiState)
             }
             SummaryStep.Final -> {
                 TaskProgressHeader("Paso 4 de 4", "Mensaje final")

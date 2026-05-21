@@ -12,12 +12,14 @@ import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.ObservedIn
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.PendingAdaptation
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.TaskInteractionState
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.UiModification
+import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.ValidationResult
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.ValidationType
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.repository.KnowledgeRepository
 import com.angelotacoj.self_adaptive_health_app.core.logging.ScreenId
 import com.angelotacoj.self_adaptive_health_app.core.logging.TaskId
 import com.angelotacoj.self_adaptive_health_app.adaptive.presentation.state.AdaptiveUiState
 import com.angelotacoj.self_adaptive_health_app.core.logging.MapeKLog
+import java.util.UUID
 
 sealed interface AdaptationEngineResult {
     data object NoAdaptation : AdaptationEngineResult
@@ -28,6 +30,7 @@ sealed interface AdaptationEngineResult {
 interface InteractionMonitor {
     fun recordEvent(event: AdaptiveInteractionEvent)
     fun evaluateSignals(taskState: TaskInteractionState): List<ObservedInteractionSignal>
+    fun clearEvents(taskId: TaskId?)
 }
 
 interface AdaptationAnalyzer {
@@ -43,7 +46,8 @@ interface AdaptationPlanner {
         difficulties: List<InferredDifficulty>,
         signals: List<ObservedInteractionSignal>,
         taskState: TaskInteractionState,
-        knowledge: KnowledgeSnapshot
+        knowledge: KnowledgeSnapshot,
+        event: AdaptiveInteractionEvent
     ): AdaptationPlan?
 }
 
@@ -60,73 +64,11 @@ interface AdaptationExecutor {
     fun undo(plan: AdaptationPlan, currentState: AdaptiveUiState): AdaptiveUiState
 }
 
-class ExtendedMapeKEngine(
-    private val knowledgeRepository: KnowledgeRepository
-) : InteractionMonitor, AdaptationAnalyzer, AdaptationPlanner, AdaptationController, AdaptationExecutor {
+class InteractionMonitorImpl : InteractionMonitor {
     private val events = mutableListOf<AdaptiveInteractionEvent>()
-
-    fun clearEvents(taskId: TaskId? = null) {
-        if (taskId == null) {
-            events.clear()
-            MapeKLog.stage("MONITOR", "event buffer cleared scope=ALL")
-        } else {
-            events.removeAll { it.taskId == taskId }
-            MapeKLog.stage("MONITOR", "event buffer cleared task=$taskId")
-        }
-    }
-
-    fun process(
-        event: AdaptiveInteractionEvent,
-        taskState: TaskInteractionState,
-        currentState: AdaptiveUiState
-    ): AdaptationEngineResult {
-        recordEvent(event)
-        val signals = evaluateSignals(taskState)
-        val knowledge = knowledgeRepository.snapshot(taskState.taskId, taskState.screenId)
-        val difficulties = inferDifficulties(signals, taskState, knowledge)
-        val plan = createPlan(difficulties, signals, taskState, knowledge) ?: run {
-            MapeKLog.stage(
-                "STATE",
-                "trace=${event.eventType} -> OIS=${signals.names()} -> DI=${difficulties.names()} -> AR=NONE -> validation=NOT_APPLICABLE -> UI=NONE -> knowledge=PENDING_NAV_SAVE"
-            )
-            return AdaptationEngineResult.NoAdaptation
-        }
-        val controlled = validatePlan(plan, taskState, knowledge)
-        if (!controlled.canShow) {
-            MapeKLog.stage(
-                "STATE",
-                "trace=${event.eventType} -> OIS=${signals.names()} -> DI=${difficulties.names()} -> AR=${plan.ruleId} -> validation=BLOCKED(${controlled.reason}) -> UI=NONE -> knowledge=PENDING_NAV_SAVE"
-            )
-            return AdaptationEngineResult.NoAdaptation
-        }
-
-        return when (plan.validationType) {
-            ValidationType.NON_INTRUSIVE,
-            ValidationType.DIRECT -> {
-                MapeKLog.stage(
-                    "STATE",
-                    "trace=${event.eventType} -> OIS=${signals.names()} -> DI=${difficulties.names()} -> AR=${plan.ruleId} -> validation=${plan.validationType}_AUTO_APPROVED -> UI=${plan.modifications.names()} -> knowledge=PENDING_NAV_SAVE"
-                )
-                AdaptationEngineResult.Applied(apply(plan, currentState), plan)
-            }
-
-            ValidationType.SUGGESTED,
-            ValidationType.EXPLICIT -> {
-                val pending = PendingAdaptation(plan.ruleId, plan.title, plan.message, plan.modifications, plan.validationType)
-                MapeKLog.stage(
-                    "USER_VALIDATION",
-                    "trace=${event.eventType} -> OIS=${signals.names()} -> DI=${difficulties.names()} -> AR=${plan.ruleId} -> validation=${plan.validationType}_PENDING -> UI=PENDING_USER_DECISION -> knowledge=PENDING_NAV_SAVE"
-                )
-                AdaptationEngineResult.RequiresUserValidation(currentState.copy(pendingAdaptation = pending), plan)
-            }
-
-            ValidationType.NOT_APPLICABLE -> AdaptationEngineResult.NoAdaptation
-        }
-    }
 
     override fun recordEvent(event: AdaptiveInteractionEvent) {
         events += event
-        MapeKLog.stage("MONITOR", "input event=${event.eventType} task=${event.taskId} screen=${event.screenId}")
         MapeKLog.stage("MONITOR", "interaction event=${event.eventType} task=${event.taskId} screen=${event.screenId}")
     }
 
@@ -134,9 +76,11 @@ class ExtendedMapeKEngine(
         val taskEvents = events.filter { it.taskId == taskState.taskId }
         val screenEvents = taskEvents.filter { it.screenId == taskState.screenId }
         val signals = mutableListOf<ObservedInteractionSignal>()
-        if (screenEvents.count { it.eventType == AdaptiveInteractionEventType.TOUCH_ERROR } >= 3 ||
+        
+        if (screenEvents.count { it.eventType == AdaptiveInteractionEventType.TOUCH_ERROR } >= 2 ||
             taskEvents.count { it.eventType == AdaptiveInteractionEventType.TOUCH_ERROR } >= 4
         ) signals += ObservedInteractionSignal.OIS01_TOUCH_ERRORS
+        
         if (taskEvents.any { it.eventType == AdaptiveInteractionEventType.PROLONGED_TIME }) signals += ObservedInteractionSignal.OIS02_PROLONGED_TIME
         if (taskEvents.any { it.eventType == AdaptiveInteractionEventType.CONFIRMATION_PAUSE }) signals += ObservedInteractionSignal.OIS03_CONFIRMATION_PAUSE
         if (taskEvents.count { it.eventType == AdaptiveInteractionEventType.BACK_PRESSED } >= 2) signals += ObservedInteractionSignal.OIS04_BACKTRACKING
@@ -144,16 +88,22 @@ class ExtendedMapeKEngine(
         if (taskEvents.any { it.eventType == AdaptiveInteractionEventType.FIELD_ERROR } || taskState.fieldErrorCount > 0) signals += ObservedInteractionSignal.OIS06_FIELD_ERROR
         if (taskEvents.any { it.eventType == AdaptiveInteractionEventType.ADAPTATION_REJECTED }) signals += ObservedInteractionSignal.OIS07_ADAPTATION_REJECTED
         if (taskEvents.any { it.eventType == AdaptiveInteractionEventType.SENSITIVE_ACTION }) signals += ObservedInteractionSignal.OIS08_SENSITIVE_ACTION
-        MapeKLog.stage("MONITOR", "output OIS=${signals.names()} task=${taskState.taskId} screen=${taskState.screenId}")
+        
         return signals
     }
 
+    override fun clearEvents(taskId: TaskId?) {
+        if (taskId == null) events.clear() else events.removeAll { it.taskId == taskId }
+    }
+}
+
+class DifficultyAnalyzer : AdaptationAnalyzer {
     override fun inferDifficulties(
         signals: List<ObservedInteractionSignal>,
         taskState: TaskInteractionState,
         knowledge: KnowledgeSnapshot
     ): List<InferredDifficulty> {
-        val difficulties = signals.mapNotNull {
+        return signals.mapNotNull {
             when (it) {
                 ObservedInteractionSignal.OIS01_TOUCH_ERRORS -> InferredDifficulty.DI01_MOTOR_PRECISION
                 ObservedInteractionSignal.OIS02_PROLONGED_TIME,
@@ -165,16 +115,16 @@ class ExtendedMapeKEngine(
                 ObservedInteractionSignal.OIS07_ADAPTATION_REJECTED -> InferredDifficulty.DI05_USER_PREFERENCE_OR_LOSS_OF_CONTROL
             }
         }.distinct()
-        MapeKLog.stage("ANALYZER", "input OIS=${signals.names()} task=${taskState.taskId} screen=${taskState.screenId}")
-        MapeKLog.stage("ANALYZER", "output DI=${difficulties.names()} rejected=${knowledge.rejectedRulesForTask.names()}")
-        return difficulties
     }
+}
 
+class RulePlanner : AdaptationPlanner {
     override fun createPlan(
         difficulties: List<InferredDifficulty>,
         signals: List<ObservedInteractionSignal>,
         taskState: TaskInteractionState,
-        knowledge: KnowledgeSnapshot
+        knowledge: KnowledgeSnapshot,
+        event: AdaptiveInteractionEvent
     ): AdaptationPlan? {
         val rule = when {
             ObservedInteractionSignal.OIS03_CONFIRMATION_PAUSE in signals -> AdaptationRuleId.AR03
@@ -185,53 +135,63 @@ class ExtendedMapeKEngine(
             ObservedInteractionSignal.OIS01_TOUCH_ERRORS in signals -> AdaptationRuleId.AR01
             ObservedInteractionSignal.OIS02_PROLONGED_TIME in signals -> AdaptationRuleId.AR02
             ObservedInteractionSignal.OIS07_ADAPTATION_REJECTED in signals -> AdaptationRuleId.AR07
-            else -> {
-                MapeKLog.stage("PLANNER", "AR=NONE because OIS=${signals.names()}")
-                return null
-            }
+            else -> return null
         }
-        if (rule in knowledge.rejectedRulesForTask && rule != AdaptationRuleId.AR07) {
-            MapeKLog.stage("PLANNER", "AR=$rule suppressed by Knowledge Base rejection memory")
-            return null
-        }
-        val plan = rule.toPlan(signals, difficulties, taskState.taskId, taskState.screenId)
-        MapeKLog.stage("PLANNER", "output AR=${plan.ruleId} UIM=${plan.modifications.names()} validation=${plan.validationType}")
-        return plan
+        if (rule in knowledge.rejectedRulesForTask && rule != AdaptationRuleId.AR07) return null
+        return rule.toPlan(signals, difficulties, taskState.taskId, taskState.screenId, event.reviewSummary)
     }
+}
 
+class SafetyAdaptationController : AdaptationController {
     override fun validatePlan(
         plan: AdaptationPlan,
         taskState: TaskInteractionState,
         knowledge: KnowledgeSnapshot
     ): ControlledAdaptationPlan {
-        val recentlyRejected = knowledge.lastRejectionAt?.let { System.currentTimeMillis() - it < 20_000 } == true
-        if (recentlyRejected && plan.validationType == ValidationType.SUGGESTED) {
-            MapeKLog.stage("CONTROLLER", "decision=BLOCKED reason=Recent rejection. AR=${plan.ruleId}")
-            MapeKLog.stage("CONTROLLER", "validation decision=BLOCKED_RECENT_REJECTION AR=${plan.ruleId}")
-            return ControlledAdaptationPlan(plan, false, "Recent rejection.")
-        }
-        if (plan.validationType == ValidationType.SUGGESTED && knowledge.suggestionsShownForTask >= 2) {
-            MapeKLog.stage("CONTROLLER", "decision=BLOCKED reason=Suggestion saturation. AR=${plan.ruleId}")
-            MapeKLog.stage("CONTROLLER", "validation decision=BLOCKED_SUGGESTION_SATURATION AR=${plan.ruleId}")
-            return ControlledAdaptationPlan(plan, false, "Suggestion saturation.")
-        }
-        if (plan.validationType == ValidationType.EXPLICIT && knowledge.modalShownForScreen) {
-            MapeKLog.stage("CONTROLLER", "decision=BLOCKED reason=Modal already shown on screen. AR=${plan.ruleId}")
-            MapeKLog.stage("CONTROLLER", "validation decision=BLOCKED_MODAL_ALREADY_SHOWN AR=${plan.ruleId}")
-            return ControlledAdaptationPlan(plan, false, "Modal already shown on screen.")
-        }
-        MapeKLog.stage("CONTROLLER", "decision=CAN_SHOW reason=Allowed AR=${plan.ruleId}")
-        MapeKLog.stage("CONTROLLER", "validation decision=CAN_SHOW AR=${plan.ruleId} type=${plan.validationType}")
-        return ControlledAdaptationPlan(plan, true)
-    }
+        if (plan.difficulties.isEmpty()) return ControlledAdaptationPlan(plan, false, ValidationResult.REJECTED, "No difficulties identified.")
 
+        val isSensitiveAction = plan.signals.contains(ObservedInteractionSignal.OIS08_SENSITIVE_ACTION)
+        if (isSensitiveAction && plan.validationType == ValidationType.NON_INTRUSIVE) {
+            return ControlledAdaptationPlan(plan.copy(validationType = ValidationType.EXPLICIT), true, ValidationResult.ADJUSTED, "Intrusive adaptation during sensitive action.")
+        }
+
+        val recentlyRejected = knowledge.lastRejectionAt?.let { System.currentTimeMillis() - it < 20_000 } == true
+        if (recentlyRejected && plan.validationType == ValidationType.SUGGESTED) return ControlledAdaptationPlan(plan, false, ValidationResult.REJECTED, "Recent rejection.")
+
+        if (plan.validationType == ValidationType.SUGGESTED && knowledge.suggestionsShownForTask >= 2) return ControlledAdaptationPlan(plan, false, ValidationResult.REJECTED, "Suggestion saturation.")
+        if (plan.validationType == ValidationType.EXPLICIT && knowledge.modalShownForScreen) return ControlledAdaptationPlan(plan, false, ValidationResult.REJECTED, "Modal already shown.")
+
+        return ControlledAdaptationPlan(plan, true, ValidationResult.APPROVED)
+    }
+}
+
+class ComposeAdaptationExecutor(private val knowledgeRepository: KnowledgeRepository) : AdaptationExecutor {
     override fun apply(plan: AdaptationPlan, currentState: AdaptiveUiState): AdaptiveUiState {
-        MapeKLog.stage("EXECUTOR", "applying AR=${plan.ruleId} UI=${plan.modifications.names()}")
-        MapeKLog.stage("EXECUTOR", "before adaptiveUiState=$currentState")
-        MapeKLog.stage(
-            "EXECUTOR",
-            "before textScale=${currentState.textScale} contextualHelpVisible=${currentState.contextualHelpVisible}"
-        )
+        val previousStateSnapshot = mutableMapOf<String, Any>()
+        plan.modifications.forEach { modification ->
+            when (modification) {
+                UiModification.UIM01_TEXT_SIZE -> previousStateSnapshot["textScale"] = currentState.textScale
+                UiModification.UIM02_CONTRAST -> previousStateSnapshot["highContrast"] = currentState.highContrast
+                UiModification.UIM03_TOUCH_TARGETS -> previousStateSnapshot["enlargedTouchTargets"] = currentState.enlargedTouchTargets
+                UiModification.UIM04_SPACING -> previousStateSnapshot["increasedSpacing"] = currentState.increasedSpacing
+                UiModification.UIM05_ICONS_LABELS -> previousStateSnapshot["showIconLabels"] = currentState.showIconLabels
+                UiModification.UIM06_CONTEXTUAL_HELP -> {
+                    previousStateSnapshot["contextualHelpVisible"] = currentState.contextualHelpVisible
+                    previousStateSnapshot["contextualHelpMessage"] = currentState.contextualHelpMessage ?: ""
+                }
+                UiModification.UIM07_GUIDED_NAVIGATION -> {
+                    previousStateSnapshot["guidedModeEnabled"] = currentState.guidedModeEnabled
+                    previousStateSnapshot["guidedStepMessage"] = currentState.guidedStepMessage ?: ""
+                }
+                UiModification.UIM08_REINFORCED_CONFIRMATION -> previousStateSnapshot["reinforcedConfirmationVisible"] = currentState.reinforcedConfirmationVisible
+                UiModification.UIM09_VISUAL_FEEDBACK -> {
+                    previousStateSnapshot["contextualHelpVisible"] = currentState.contextualHelpVisible
+                    previousStateSnapshot["contextualHelpMessage"] = currentState.contextualHelpMessage ?: ""
+                }
+                UiModification.UIM10_SAFE_EXIT -> previousStateSnapshot["safeExitEnabled"] = currentState.safeExitEnabled
+            }
+        }
+
         val state = plan.modifications.fold(currentState.copy(pendingAdaptation = null)) { acc, modification ->
             when (modification) {
                 UiModification.UIM01_TEXT_SIZE -> acc.copy(textScale = 1.25f)
@@ -246,74 +206,88 @@ class ExtendedMapeKEngine(
                 UiModification.UIM10_SAFE_EXIT -> acc.copy(safeExitEnabled = true)
             }
         }
-        MapeKLog.stage("EXECUTOR", "after adaptiveUiState=$state")
-        MapeKLog.stage(
-            "EXECUTOR",
-            "after textScale=${state.textScale} contextualHelpVisible=${state.contextualHelpVisible}"
-        )
-        if (plan.validationType == ValidationType.SUGGESTED) {
-            knowledgeRepository.rememberSuggested(plan.taskId, plan.ruleId)
-            MapeKLog.stage("KNOWLEDGE", "rememberSuggested task=${plan.taskId} AR=${plan.ruleId}")
-        }
-        if (plan.validationType == ValidationType.EXPLICIT) {
-            knowledgeRepository.rememberModal(plan.screenId, plan.ruleId)
-            MapeKLog.stage("KNOWLEDGE", "rememberModal screen=${plan.screenId} AR=${plan.ruleId}")
-        }
-        MapeKLog.stage("STATE", "AdaptiveUiState changed by AR=${plan.ruleId}; Compose observes StateFlow and recomposes")
-        MapeKLog.state("adaptiveUiState updated textScale=${state.textScale} contextualHelpVisible=${state.contextualHelpVisible}")
+
+        if (plan.validationType == ValidationType.SUGGESTED) knowledgeRepository.rememberSuggested(plan.taskId, plan.ruleId)
+        if (plan.validationType == ValidationType.EXPLICIT) knowledgeRepository.rememberModal(plan.screenId, plan.ruleId)
+
         val undoable = plan.ruleId in setOf(AdaptationRuleId.AR01, AdaptationRuleId.AR02, AdaptationRuleId.AR04)
         return state.copy(
-            lastAppliedAdaptation = if (undoable) AppliedAdaptation(plan.ruleId, plan.modifications) else currentState.lastAppliedAdaptation,
+            lastAppliedAdaptation = if (undoable) AppliedAdaptation(plan.ruleId, plan.modifications, previousStateSnapshot) else currentState.lastAppliedAdaptation,
             undoMessageVisible = undoable
         )
     }
 
     override fun undo(plan: AdaptationPlan, currentState: AdaptiveUiState): AdaptiveUiState {
         knowledgeRepository.rememberRejected(plan.taskId, plan.ruleId)
-        MapeKLog.stage("USER_VALIDATION", "validation decision=UNDO AR=${plan.ruleId}")
-        MapeKLog.stage("KNOWLEDGE", "rememberRejected from undo task=${plan.taskId} AR=${plan.ruleId}")
-        val restored = currentState.copy(
-            textScale = if (UiModification.UIM01_TEXT_SIZE in plan.modifications) 1.0f else currentState.textScale,
-            enlargedTouchTargets = if (UiModification.UIM03_TOUCH_TARGETS in plan.modifications) false else currentState.enlargedTouchTargets,
-            increasedSpacing = if (UiModification.UIM04_SPACING in plan.modifications) false else currentState.increasedSpacing,
-            guidedModeEnabled = if (UiModification.UIM07_GUIDED_NAVIGATION in plan.modifications) false else currentState.guidedModeEnabled,
-            guidedStepMessage = if (UiModification.UIM07_GUIDED_NAVIGATION in plan.modifications) null else currentState.guidedStepMessage,
-            contextualHelpVisible = true,
-            contextualHelpMessage = "Entendido. No volveré a mostrar esta sugerencia durante esta tarea.",
-            undoMessageVisible = false,
-            lastAppliedAdaptation = null
-        )
-        MapeKLog.stage(
-            "EXECUTOR",
-            "undo AR=${plan.ruleId} textScale ${currentState.textScale} -> ${restored.textScale}"
-        )
-        MapeKLog.state("adaptiveUiState updated textScale=${restored.textScale} contextualHelpVisible=${restored.contextualHelpVisible}")
+        val lastApplied = currentState.lastAppliedAdaptation
+        val restored = if (lastApplied != null && lastApplied.ruleId == plan.ruleId) {
+            var tempState = currentState
+            lastApplied.previousState.forEach { (key, value) ->
+                tempState = when (key) {
+                    "textScale" -> tempState.copy(textScale = value as Float)
+                    "highContrast" -> tempState.copy(highContrast = value as Boolean)
+                    "enlargedTouchTargets" -> tempState.copy(enlargedTouchTargets = value as Boolean)
+                    "increasedSpacing" -> tempState.copy(increasedSpacing = value as Boolean)
+                    "showIconLabels" -> tempState.copy(showIconLabels = value as Boolean)
+                    "contextualHelpVisible" -> tempState.copy(contextualHelpVisible = value as Boolean)
+                    "contextualHelpMessage" -> tempState.copy(contextualHelpMessage = (value as String).takeIf { it.isNotEmpty() })
+                    "guidedModeEnabled" -> tempState.copy(guidedModeEnabled = value as Boolean)
+                    "guidedStepMessage" -> tempState.copy(guidedStepMessage = (value as String).takeIf { it.isNotEmpty() })
+                    "reinforcedConfirmationVisible" -> tempState.copy(reinforcedConfirmationVisible = value as Boolean)
+                    "safeExitEnabled" -> tempState.copy(safeExitEnabled = value as Boolean)
+                    else -> tempState
+                }
+            }
+            tempState.copy(contextualHelpVisible = true, contextualHelpMessage = "Entendido. No volveré a mostrar esta sugerencia durante esta tarea.", undoMessageVisible = false, lastAppliedAdaptation = null)
+        } else {
+            currentState.copy(contextualHelpVisible = true, contextualHelpMessage = "Entendido. No volveré a mostrar esta sugerencia durante esta tarea.", undoMessageVisible = false, lastAppliedAdaptation = null)
+        }
         return restored
-    }
-
-    fun reject(plan: AdaptationPlan) {
-        knowledgeRepository.rememberRejected(plan.taskId, plan.ruleId)
-        MapeKLog.stage("USER_VALIDATION", "validation decision=REJECT AR=${plan.ruleId}")
-        MapeKLog.stage("KNOWLEDGE", "rememberRejected task=${plan.taskId} AR=${plan.ruleId}")
     }
 }
 
-private fun <T : Enum<T>> Collection<T>.names(): String = joinToString(prefix = "[", postfix = "]", separator = ",") { it.name }
+class ExtendedMapeKCoordinator(
+    private val knowledgeRepository: KnowledgeRepository,
+    private val monitor: InteractionMonitor = InteractionMonitorImpl(),
+    private val analyzer: AdaptationAnalyzer = DifficultyAnalyzer(),
+    private val planner: AdaptationPlanner = RulePlanner(),
+    private val controller: AdaptationController = SafetyAdaptationController(),
+    private val executor: AdaptationExecutor = ComposeAdaptationExecutor(knowledgeRepository)
+) {
+    fun clearEvents(taskId: TaskId? = null) = monitor.clearEvents(taskId)
+    fun process(event: AdaptiveInteractionEvent, taskState: TaskInteractionState, currentState: AdaptiveUiState): AdaptationEngineResult {
+        monitor.recordEvent(event)
+        val signals = monitor.evaluateSignals(taskState)
+        val knowledge = knowledgeRepository.snapshot(taskState.taskId, taskState.screenId)
+        val difficulties = analyzer.inferDifficulties(signals, taskState, knowledge)
+        val plan = planner.createPlan(difficulties, signals, taskState, knowledge, event) ?: return AdaptationEngineResult.NoAdaptation
+        val controlled = controller.validatePlan(plan, taskState, knowledge)
+        if (!controlled.canShow) return AdaptationEngineResult.NoAdaptation
+        val activePlan = controlled.plan
+        return when (activePlan.validationType) {
+            ValidationType.NON_INTRUSIVE, ValidationType.DIRECT -> AdaptationEngineResult.Applied(executor.apply(activePlan, currentState), activePlan)
+            ValidationType.SUGGESTED, ValidationType.EXPLICIT -> {
+                val pending = PendingAdaptation(activePlan.ruleId, activePlan.title, activePlan.message, activePlan.modifications, activePlan.validationType, activePlan.reviewSummary)
+                AdaptationEngineResult.RequiresUserValidation(currentState.copy(pendingAdaptation = pending), activePlan)
+            }
+            ValidationType.NOT_APPLICABLE -> AdaptationEngineResult.NoAdaptation
+        }
+    }
+    fun apply(plan: AdaptationPlan, currentState: AdaptiveUiState) = executor.apply(plan, currentState)
+    fun undo(plan: AdaptationPlan, currentState: AdaptiveUiState) = executor.undo(plan, currentState)
+    fun reject(plan: AdaptationPlan) = knowledgeRepository.rememberRejected(plan.taskId, plan.ruleId)
+}
 
-private fun AdaptationRuleId.toPlan(
-    signals: List<ObservedInteractionSignal>,
-    difficulties: List<InferredDifficulty>,
-    taskId: TaskId?,
-    screenId: ScreenId?
-): AdaptationPlan {
+private fun AdaptationRuleId.toPlan(signals: List<ObservedInteractionSignal>, difficulties: List<InferredDifficulty>, taskId: TaskId?, screenId: ScreenId?, reviewSummary: com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.ReviewSummary? = null): AdaptationPlan {
+    val id = "evt_" + UUID.randomUUID().toString()
     return when (this) {
-        AdaptationRuleId.AR01 -> AdaptationPlan(this, signals, difficulties, listOf(UiModification.UIM03_TOUCH_TARGETS, UiModification.UIM04_SPACING), ValidationType.SUGGESTED, "Facilitar los toques", "Puedo hacer los botones más grandes y separados para facilitar los toques. ¿Desea aplicar este cambio?", taskId, screenId)
-        AdaptationRuleId.AR02 -> AdaptationPlan(this, signals, difficulties, listOf(UiModification.UIM01_TEXT_SIZE, UiModification.UIM06_CONTEXTUAL_HELP, UiModification.UIM09_VISUAL_FEEDBACK), ValidationType.NON_INTRUSIVE, "Siguiente paso sugerido", "Siguiente paso sugerido: revise la información y toque el botón para continuar.", taskId, screenId)
-        AdaptationRuleId.AR03 -> AdaptationPlan(this, signals, difficulties, listOf(UiModification.UIM08_REINFORCED_CONFIRMATION, UiModification.UIM10_SAFE_EXIT), ValidationType.EXPLICIT, "Revisar antes de guardar", "Antes de guardar, revise el resumen. Puede confirmar, editar o cancelar.", taskId, screenId)
-        AdaptationRuleId.AR04 -> AdaptationPlan(this, signals, difficulties, listOf(UiModification.UIM07_GUIDED_NAVIGATION, UiModification.UIM09_VISUAL_FEEDBACK), ValidationType.SUGGESTED, "Activar guía paso a paso", "Puedo mostrar esta tarea paso a paso. ¿Desea activar la guía?", taskId, screenId)
-        AdaptationRuleId.AR05 -> AdaptationPlan(this, signals, difficulties, listOf(UiModification.UIM06_CONTEXTUAL_HELP), ValidationType.DIRECT, "Ayuda disponible", "Esta pantalla usa datos ficticios. Lea la tarjeta y luego elija la acción más clara para continuar.", taskId, screenId)
-        AdaptationRuleId.AR06 -> AdaptationPlan(this, signals, difficulties, listOf(UiModification.UIM09_VISUAL_FEEDBACK, UiModification.UIM10_SAFE_EXIT), ValidationType.DIRECT, "Revise el campo", "Ingrese un número entre 1 y 10. Ejemplo: 7.", taskId, screenId)
-        AdaptationRuleId.AR07 -> AdaptationPlan(this, signals, difficulties, emptyList(), ValidationType.NOT_APPLICABLE, "Preferencia guardada", "Entendido. No volveré a mostrar esta sugerencia durante esta tarea.", taskId, screenId)
-        AdaptationRuleId.AR08 -> AdaptationPlan(this, signals, difficulties, listOf(UiModification.UIM08_REINFORCED_CONFIRMATION, UiModification.UIM10_SAFE_EXIT), ValidationType.EXPLICIT, "Revisar antes de continuar", "Está por guardar información simulada. Revise los datos antes de continuar.", taskId, screenId)
+        AdaptationRuleId.AR01 -> AdaptationPlan(id, this, signals, difficulties, listOf(UiModification.UIM03_TOUCH_TARGETS, UiModification.UIM04_SPACING), ValidationType.SUGGESTED, "Facilitar los toques", "Puedo hacer los botones más grandes y separados para facilitar los toques.", taskId, screenId)
+        AdaptationRuleId.AR02 -> AdaptationPlan(id, this, signals, difficulties, listOf(UiModification.UIM01_TEXT_SIZE, UiModification.UIM06_CONTEXTUAL_HELP, UiModification.UIM09_VISUAL_FEEDBACK), ValidationType.NON_INTRUSIVE, "Siguiente paso sugerido", "Siguiente paso sugerido: revise la información y toque el botón para continuar.", taskId, screenId)
+        AdaptationRuleId.AR03 -> AdaptationPlan(id, this, signals, difficulties, listOf(UiModification.UIM08_REINFORCED_CONFIRMATION, UiModification.UIM10_SAFE_EXIT, UiModification.UIM06_CONTEXTUAL_HELP), ValidationType.EXPLICIT, "Revisar antes de guardar", "Antes de guardar, revise el resumen.", taskId, screenId, reviewSummary)
+        AdaptationRuleId.AR04 -> AdaptationPlan(id, this, signals, difficulties, listOf(UiModification.UIM07_GUIDED_NAVIGATION, UiModification.UIM09_VISUAL_FEEDBACK), ValidationType.SUGGESTED, "Activar guía paso a paso", "¿Desea activar la guía?", taskId, screenId)
+        AdaptationRuleId.AR05 -> AdaptationPlan(id, this, signals, difficulties, listOf(UiModification.UIM06_CONTEXTUAL_HELP), ValidationType.DIRECT, "Ayuda disponible", "Esta pantalla usa datos ficticios.", taskId, screenId)
+        AdaptationRuleId.AR06 -> AdaptationPlan(id, this, signals, difficulties, listOf(UiModification.UIM09_VISUAL_FEEDBACK, UiModification.UIM10_SAFE_EXIT), ValidationType.DIRECT, "Revise el campo", "Ingrese un número entre 1 y 10.", taskId, screenId)
+        AdaptationRuleId.AR07 -> AdaptationPlan(id, this, signals, difficulties, emptyList(), ValidationType.NOT_APPLICABLE, "Preferencia guardada", "Entendido.", taskId, screenId)
+        AdaptationRuleId.AR08 -> AdaptationPlan(id, this, signals, difficulties, listOf(UiModification.UIM08_REINFORCED_CONFIRMATION, UiModification.UIM10_SAFE_EXIT), ValidationType.EXPLICIT, "Revisar antes de continuar", "Está por guardar información simulada.", taskId, screenId, reviewSummary)
     }
 }

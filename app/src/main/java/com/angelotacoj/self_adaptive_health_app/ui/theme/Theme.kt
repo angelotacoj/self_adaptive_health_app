@@ -30,11 +30,35 @@ private val LightColorScheme = lightColorScheme(
     error = androidx.compose.ui.graphics.Color(0xFFBA4A4A)
 )
 
+private val HighContrastLightColorScheme = lightColorScheme(
+    primary = androidx.compose.ui.graphics.Color(0xFF000000),
+    onPrimary = androidx.compose.ui.graphics.Color(0xFFFFFFFF),
+    secondary = androidx.compose.ui.graphics.Color(0xFF000000),
+    onSecondary = androidx.compose.ui.graphics.Color(0xFFFFFFFF),
+    tertiary = androidx.compose.ui.graphics.Color(0xFF000000),
+    onTertiary = androidx.compose.ui.graphics.Color(0xFFFFFFFF),
+    background = androidx.compose.ui.graphics.Color(0xFFFFFFFF),
+    onBackground = androidx.compose.ui.graphics.Color(0xFF000000),
+    surface = androidx.compose.ui.graphics.Color(0xFFFFFFFF),
+    onSurface = androidx.compose.ui.graphics.Color(0xFF000000),
+    surfaceVariant = androidx.compose.ui.graphics.Color(0xFFE0E0E0),
+    onSurfaceVariant = androidx.compose.ui.graphics.Color(0xFF000000),
+    primaryContainer = androidx.compose.ui.graphics.Color(0xFF000000),
+    onPrimaryContainer = androidx.compose.ui.graphics.Color(0xFFFFFFFF),
+    secondaryContainer = androidx.compose.ui.graphics.Color(0xFFE0E0E0),
+    onSecondaryContainer = androidx.compose.ui.graphics.Color(0xFF000000),
+    tertiaryContainer = androidx.compose.ui.graphics.Color(0xFFE0E0E0),
+    onTertiaryContainer = androidx.compose.ui.graphics.Color(0xFF000000),
+    error = androidx.compose.ui.graphics.Color(0xFFBA1A1A),
+    onError = androidx.compose.ui.graphics.Color(0xFFFFFFFF)
+)
+
 @Composable
 fun Self_Adaptive_Health_AppTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     // Dynamic color is available on Android 12+
     dynamicColor: Boolean = false,
+    highContrast: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
@@ -43,6 +67,7 @@ fun Self_Adaptive_Health_AppTheme(
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
 
+        highContrast -> HighContrastLightColorScheme
         darkTheme -> DarkColorScheme
         else -> LightColorScheme
     }

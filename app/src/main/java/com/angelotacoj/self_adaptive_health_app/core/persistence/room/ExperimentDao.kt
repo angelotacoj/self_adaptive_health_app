@@ -123,25 +123,51 @@ interface ExperimentDao {
         deleteParticipantSession(sessionId)
     }
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAdaptationPreference(entity: AdaptationPreferenceEntity)
+
+    @Query("SELECT * FROM adaptation_preferences WHERE ruleId = :ruleId AND taskId = :taskId AND screenId = :screenId LIMIT 1")
+    suspend fun getAdaptationPreference(ruleId: String, taskId: String, screenId: String): AdaptationPreferenceEntity?
+
+    @Query("SELECT * FROM adaptation_preferences WHERE taskId = :taskId")
+    suspend fun getPreferencesForTask(taskId: String): List<AdaptationPreferenceEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTaskState(entity: TaskStateEntity)
+
+    @Query("SELECT * FROM task_interaction_states WHERE taskId = :taskId AND screenId = :screenId LIMIT 1")
+    suspend fun getTaskState(taskId: String, screenId: String): TaskStateEntity?
+
+    @Query("UPDATE adaptation_events SET undone = 1 WHERE adaptationEventId = :adaptationEventId")
+    suspend fun markAdaptationEventUndone(adaptationEventId: String)
+
+    @Query("DELETE FROM user_decision_events")
+    suspend fun clearUserDecisionEvents()
+
+    @Query("DELETE FROM adaptation_events")
+    suspend fun clearAdaptationEvents()
+
+    @Query("DELETE FROM interaction_events")
+    suspend fun clearInteractionEvents()
+
     @Query("DELETE FROM participant_sessions")
     suspend fun deleteAllParticipantSessions()
 
     @Query("DELETE FROM task_runs")
     suspend fun deleteAllTaskRuns()
 
-    @Query("DELETE FROM interaction_events")
-    suspend fun clearInteractionEvents()
+    @Query("DELETE FROM adaptation_preferences")
+    suspend fun clearAdaptationPreferences()
 
-    @Query("DELETE FROM adaptation_events")
-    suspend fun clearAdaptationEvents()
-
-    @Query("DELETE FROM user_decision_events")
-    suspend fun clearUserDecisionEvents()
+    @Query("DELETE FROM task_interaction_states")
+    suspend fun clearTaskInteractionStates()
 
     suspend fun clearAll() {
         clearUserDecisionEvents()
         clearAdaptationEvents()
         clearInteractionEvents()
+        clearAdaptationPreferences()
+        clearTaskInteractionStates()
         deleteAllTaskRuns()
         deleteAllParticipantSessions()
     }

@@ -61,6 +61,29 @@ data class AdaptationEventEntity(
     val timestamp: Long
 )
 
+@Entity(tableName = "adaptation_preferences", primaryKeys = ["ruleId", "taskId", "screenId"])
+data class AdaptationPreferenceEntity(
+    val ruleId: String,
+    val taskId: String,
+    val screenId: String,
+    val rejectedCount: Int,
+    val lastRejectedAt: Long,
+    val suppressAutomatic: Boolean
+)
+
+@Entity(tableName = "task_interaction_states", primaryKeys = ["taskId", "screenId"])
+data class TaskStateEntity(
+    val taskId: String,
+    val screenId: String,
+    val touchErrorCount: Int,
+    val fieldErrorCount: Int,
+    val helpRequestCount: Int,
+    val backCount: Int,
+    val screenEnteredAt: Long,
+    val lastSuccessfulActionAt: Long,
+    val confirmationPause: Boolean
+)
+
 @Entity(tableName = "user_decision_events")
 data class UserDecisionEventEntity(
     @PrimaryKey val decisionId: String,

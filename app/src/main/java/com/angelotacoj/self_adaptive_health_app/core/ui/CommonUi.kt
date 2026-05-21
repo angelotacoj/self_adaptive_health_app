@@ -38,6 +38,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import com.angelotacoj.self_adaptive_health_app.adaptive.presentation.components.LocalAdaptiveEvent
+import com.angelotacoj.self_adaptive_health_app.adaptive.presentation.components.LocalCurrentScreenId
+import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.AdaptiveInteractionEventType
 import androidx.compose.ui.unit.sp
 import com.angelotacoj.self_adaptive_health_app.adaptive.presentation.state.AdaptiveUiState
 
@@ -155,9 +161,12 @@ fun HealthTopBar(
             }
         },
         navigationIcon = {
-            if (navigationLabel != null && onNavigationClick != null) {
+            if (onNavigationClick != null) {
                 TextButton(onClick = onNavigationClick) {
-                    Text("‹ $navigationLabel", style = MaterialTheme.typography.titleMedium)
+                    Text("‹", style = MaterialTheme.typography.titleMedium)
+                    if (adaptiveUiState.showIconLabels && navigationLabel != null) {
+                        Text(" $navigationLabel", style = MaterialTheme.typography.titleMedium)
+                    }
                 }
             }
         },
@@ -260,11 +269,18 @@ fun LargePrimaryButton(
     enabled: Boolean = true,
     adaptiveUiState: AdaptiveUiState = AdaptiveUiState()
 ) {
+    val onEvent = LocalAdaptiveEvent.current
+    val screenId = LocalCurrentScreenId.current
     Button(
         onClick = onClick,
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = if (adaptiveUiState.enlargedTouchTargets) 68.dp else 58.dp),
+            .heightIn(min = if (adaptiveUiState.enlargedTouchTargets) 68.dp else 58.dp)
+            .pointerInput(enabled) {
+                if (!enabled) {
+                    detectTapGestures(onTap = { onEvent(AdaptiveInteractionEventType.TOUCH_ERROR, screenId, null) })
+                }
+            },
         enabled = enabled,
         contentPadding = PaddingValues(horizontal = 22.dp, vertical = if (adaptiveUiState.enlargedTouchTargets) 20.dp else 16.dp),
         shape = RoundedCornerShape(20.dp),
@@ -279,13 +295,22 @@ fun LargeSecondaryButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
     adaptiveUiState: AdaptiveUiState = AdaptiveUiState()
 ) {
+    val onEvent = LocalAdaptiveEvent.current
+    val screenId = LocalCurrentScreenId.current
     OutlinedButton(
         onClick = onClick,
+        enabled = enabled,
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = if (adaptiveUiState.enlargedTouchTargets) 68.dp else 58.dp),
+            .heightIn(min = if (adaptiveUiState.enlargedTouchTargets) 68.dp else 58.dp)
+            .pointerInput(enabled) {
+                if (!enabled) {
+                    detectTapGestures(onTap = { onEvent(AdaptiveInteractionEventType.TOUCH_ERROR, screenId, null) })
+                }
+            },
         contentPadding = PaddingValues(horizontal = 22.dp, vertical = if (adaptiveUiState.enlargedTouchTargets) 20.dp else 16.dp),
         shape = RoundedCornerShape(20.dp),
         colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary)
@@ -299,13 +324,22 @@ fun LargeDestructiveButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
     adaptiveUiState: AdaptiveUiState = AdaptiveUiState()
 ) {
+    val onEvent = LocalAdaptiveEvent.current
+    val screenId = LocalCurrentScreenId.current
     OutlinedButton(
         onClick = onClick,
+        enabled = enabled,
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = if (adaptiveUiState.enlargedTouchTargets) 68.dp else 58.dp),
+            .heightIn(min = if (adaptiveUiState.enlargedTouchTargets) 68.dp else 58.dp)
+            .pointerInput(enabled) {
+                if (!enabled) {
+                    detectTapGestures(onTap = { onEvent(AdaptiveInteractionEventType.TOUCH_ERROR, screenId, null) })
+                }
+            },
         contentPadding = PaddingValues(horizontal = 22.dp, vertical = if (adaptiveUiState.enlargedTouchTargets) 20.dp else 16.dp),
         shape = RoundedCornerShape(20.dp),
         colors = ButtonDefaults.outlinedButtonColors(contentColor = SoftRed)

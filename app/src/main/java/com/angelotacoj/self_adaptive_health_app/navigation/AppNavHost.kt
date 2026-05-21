@@ -22,13 +22,21 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.engine.AdaptationEngineResult
-import com.angelotacoj.self_adaptive_health_app.adaptive.domain.engine.ExtendedMapeKEngine
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.AdaptationPlan
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.AdaptiveInteractionEvent
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.AdaptiveInteractionEventType
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.ExperimentCondition
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.TaskInteractionState
 import com.angelotacoj.self_adaptive_health_app.adaptive.presentation.components.AdaptiveSnackbar
+import androidx.compose.runtime.CompositionLocalProvider
+import com.angelotacoj.self_adaptive_health_app.adaptive.presentation.components.LocalAdaptiveEvent
+import com.angelotacoj.self_adaptive_health_app.ui.theme.Self_Adaptive_Health_AppTheme
+import com.angelotacoj.self_adaptive_health_app.adaptive.presentation.viewmodel.AdaptiveViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModel
+import com.angelotacoj.self_adaptive_health_app.adaptive.domain.repository.KnowledgeRepository
+import com.angelotacoj.self_adaptive_health_app.adaptive.domain.engine.ExtendedMapeKCoordinator
 import com.angelotacoj.self_adaptive_health_app.adaptive.presentation.state.AdaptiveUiState
 import com.angelotacoj.self_adaptive_health_app.core.logging.DebugLogEntry
 import com.angelotacoj.self_adaptive_health_app.core.logging.ExperimentLogger
@@ -80,24 +88,33 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import java.util.UUID
 
+
+class AdaptiveViewModelFactory(
+    private val coordinator: ExtendedMapeKCoordinator,
+    private val knowledge: KnowledgeRepository
+) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        return AdaptiveViewModel(coordinator, knowledge) as T
+    }
+}
+
 @Composable
 fun AppNavHost(
     navController: NavHostController = rememberNavController()
 ) {
     var sessionState by remember { mutableStateOf<ExperimentSessionState?>(null) }
-    val adaptiveUiStateFlow = remember { MutableStateFlow(AdaptiveUiState()) }
-    val adaptiveUiState by adaptiveUiStateFlow.collectAsStateWithLifecycle()
+    val knowledge = AppContainer.knowledgeRepository
+    val engine = remember { com.angelotacoj.self_adaptive_health_app.adaptive.domain.engine.ExtendedMapeKCoordinator(knowledge) }
+    val adaptiveViewModel: AdaptiveViewModel = viewModel(factory = AdaptiveViewModelFactory(engine, knowledge))
+    val adaptiveUiState by adaptiveViewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
-    var pendingPlan by remember { mutableStateOf<AdaptationPlan?>(null) }
-    var lastAppliedPlan by remember { mutableStateOf<AdaptationPlan?>(null) }
+    
     var existingSetupSession by remember { mutableStateOf<ExperimentSessionState?>(null) }
     var pendingSetupSession by remember { mutableStateOf<com.angelotacoj.self_adaptive_health_app.core.model.ExperimentSession?>(null) }
     var conditionTransitionState by remember { mutableStateOf<ExperimentSessionState?>(null) }
     var sessionCompletedState by remember { mutableStateOf<ExperimentSessionState?>(null) }
     val logger = AppContainer.experimentLogger
     val scope = rememberCoroutineScope()
-    val knowledge = AppContainer.knowledgeRepository
-    val engine = remember { ExtendedMapeKEngine(knowledge) }
 
     LaunchedEffect(adaptiveUiState.snackbarMessage) {
         adaptiveUiState.snackbarMessage?.let { message ->
@@ -105,7 +122,7 @@ fun AppNavHost(
                 message = message,
                 duration = SnackbarDuration.Short
             )
-            adaptiveUiStateFlow.value = adaptiveUiStateFlow.value.copy(snackbarMessage = null)
+            adaptiveViewModel.clearSnackbar()
         }
     }
 
@@ -177,10 +194,9 @@ fun AppNavHost(
         sessionState = started
         existingSetupSession = null
         pendingSetupSession = null
-        adaptiveUiStateFlow.value = AdaptiveUiState(isAdaptiveMode = started.currentCondition == ExperimentCondition.SELF_ADAPTIVE_UI)
-        pendingPlan = null
-        lastAppliedPlan = null
-        engine.clearEvents()
+        adaptiveViewModel.setAdaptiveMode(started.currentCondition == ExperimentCondition.SELF_ADAPTIVE_UI)
+        adaptiveViewModel.resetState()
+        adaptiveViewModel.clearEvents()
         knowledge.clearCurrentTaskAdaptationMemory()
         scope.launch {
             AppContainer.experimentPreferences.saveSession(started)
@@ -208,141 +224,32 @@ fun AppNavHost(
         val restored = restoreActiveSession()
         if (restored != null) {
             sessionState = restored
-            adaptiveUiStateFlow.value = AdaptiveUiState(isAdaptiveMode = restored.currentCondition == ExperimentCondition.SELF_ADAPTIVE_UI)
+            adaptiveViewModel.setAdaptiveMode(restored.currentCondition == ExperimentCondition.SELF_ADAPTIVE_UI)
             MapeKLog.experiment("active session restored session=${restored.sessionId} condition=${restored.currentCondition}")
         }
     }
 
-    fun processAdaptiveEvent(
-        taskId: TaskId?,
-        screenId: ScreenId,
-        type: AdaptiveInteractionEventType
-    ): Boolean {
-        val session = activeSession() ?: return false
-        val interactionEntry = session.logEntry(type.toLogType(), taskId, screenId, "Interaction event: $type.")
-        logger.log(interactionEntry)
-        MapeKLog.stage("EVENT", "received eventType=$type task=$taskId screen=$screenId condition=${session.currentCondition}")
-        MapeKLog.stage("EVENT", "$taskId | screen=$screenId | event=$type")
-        MapeKLog.stage(
-            "CONDITION",
-            "current=${session.currentCondition} adaptationEnabled=${session.currentCondition == ExperimentCondition.SELF_ADAPTIVE_UI}"
-        )
-        MapeKLog.stage("MONITOR", "interaction event -> ${type} condition=${session.currentCondition} task=$taskId screen=$screenId")
-        scope.launch { knowledge.saveInteractionEvent(interactionEntry, oisCode = type.toOisCode()) }
-        if (session.currentCondition != ExperimentCondition.SELF_ADAPTIVE_UI) {
-            MapeKLog.stage("STATE", "STATIC_UI logged event=${type}; adaptation skipped and AdaptiveUiState unchanged")
-            return false
-        }
 
-        val result = engine.process(
-            event = AdaptiveInteractionEvent(taskId, screenId, type),
-            taskState = TaskInteractionState(
-                taskId = taskId,
-                screenId = screenId,
-                screenEnteredAt = System.currentTimeMillis(),
-                successfulActionAt = System.currentTimeMillis(),
-                backCountInTask = 0,
-                fieldErrorCount = if (type == AdaptiveInteractionEventType.FIELD_ERROR) 1 else 0
-            ),
-            currentState = adaptiveUiState
-        )
-        return when (result) {
-            AdaptationEngineResult.NoAdaptation -> false
-            is AdaptationEngineResult.Applied -> {
-                val snackbarMessage = when (result.plan.ruleId.name) {
-                    "AR02" -> "He aumentado el tamaño del texto para ayudarle a leer mejor."
-                    "AR06" -> "He activado ayudas visuales para corregir el error."
-                    else -> "He ajustado la interfaz para ayudarle."
-                }
-                adaptiveUiStateFlow.value = result.state.copy(isAdaptiveMode = true, snackbarMessage = snackbarMessage)
-                lastAppliedPlan = result.plan
-                MapeKLog.stage("EXECUTOR", "undo target stored AR=${result.plan.ruleId} source=AUTO_APPLIED")
-                MapeKLog.state("adaptiveUiState updated textScale=${result.state.textScale} contextualHelpVisible=${result.state.contextualHelpVisible}")
-                log(session.logEntry(InteractionEventType.ADAPTATION_APPLIED, taskId, screenId, "Applied ${result.plan.ruleId}."))
-                scope.launch {
-                    knowledge.saveAdaptationEvent(result.plan.toEntity(session, applied = true, userDecision = null))
-                    MapeKLog.stage("KNOWLEDGE", "knowledge save adaptation AR=${result.plan.ruleId} applied=true decision=null")
-                    MapeKLog.stage("KNOWLEDGE", "saved adaptationEvent rule=${result.plan.ruleId} applied=true userDecision=null")
-                    MapeKLog.stage("STATE", result.plan.trace("AUTO_APPLIED", "SAVED"))
-                    MapeKLog.stage("STATE", "adaptiveUiState updated screen=$screenId rule=${result.plan.ruleId}")
-                }
-                false
-            }
-            is AdaptationEngineResult.RequiresUserValidation -> {
-                pendingPlan = result.plan
-                adaptiveUiStateFlow.value = result.state.copy(isAdaptiveMode = true)
-                log(session.logEntry(InteractionEventType.ADAPTATION_SUGGESTED, taskId, screenId, "Suggested ${result.plan.ruleId}."))
-                scope.launch {
-                    knowledge.saveAdaptationEvent(result.plan.toEntity(session, applied = false, userDecision = null))
-                    MapeKLog.stage("KNOWLEDGE", "knowledge save adaptation AR=${result.plan.ruleId} applied=false decision=pending")
-                    MapeKLog.stage("KNOWLEDGE", "saved adaptationEvent rule=${result.plan.ruleId} applied=false userDecision=null")
-                    MapeKLog.stage("STATE", result.plan.trace("PENDING_USER_VALIDATION", "SAVED"))
-                    MapeKLog.stage("STATE", "adaptiveUiState updated screen=$screenId rule=${result.plan.ruleId}")
-                }
-                true
-            }
-        }
+    fun processAdaptiveEvent(taskId: TaskId?, screenId: ScreenId, type: AdaptiveInteractionEventType, summary: com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.ReviewSummary? = null): Boolean {
+        return adaptiveViewModel.processAdaptiveEvent(activeSession(), taskId, screenId, type, summary)
     }
 
     fun applyPendingAdaptation() {
-        val session = activeSession() ?: return
-        val plan = pendingPlan ?: return
-        adaptiveUiStateFlow.value = engine.apply(plan, adaptiveUiState).copy(isAdaptiveMode = true)
-        lastAppliedPlan = plan
-        MapeKLog.stage("USER_VALIDATION", "validation decision=APPLY AR=${plan.ruleId}")
-        log(session.logEntry(InteractionEventType.ADAPTATION_APPLIED, plan.taskId, plan.screenId, "Applied ${plan.ruleId}."))
-        scope.launch {
-            knowledge.saveAdaptationEvent(plan.toEntity(session, applied = true, userDecision = "APPLY"))
-            knowledge.saveUserDecision(plan.toDecisionEntity(session, "APPLY"))
-            MapeKLog.stage("KNOWLEDGE", "knowledge save adaptation AR=${plan.ruleId} applied=true decision=APPLY")
-            MapeKLog.stage("KNOWLEDGE", "saved adaptationEvent rule=${plan.ruleId} applied=true userDecision=APPLY")
-            MapeKLog.stage("STATE", plan.trace("APPLY", "SAVED"))
-            MapeKLog.stage("STATE", "adaptiveUiState updated screen=${plan.screenId} rule=${plan.ruleId}")
-        }
-        pendingPlan = null
+        adaptiveViewModel.applyPendingAdaptation(activeSession())
     }
 
     fun rejectPendingAdaptation() {
-        val session = activeSession() ?: return
-        val plan = pendingPlan ?: return
-        engine.reject(plan)
-        adaptiveUiStateFlow.value = adaptiveUiState.copy(
-            isAdaptiveMode = true,
-            pendingAdaptation = null,
-            contextualHelpVisible = true,
-            contextualHelpMessage = "Entendido. No volveré a mostrar esta sugerencia durante esta tarea."
-        )
-        log(session.logEntry(InteractionEventType.ADAPTATION_REJECTED, plan.taskId, plan.screenId, "Rejected ${plan.ruleId}."))
-        scope.launch {
-            knowledge.saveUserDecision(plan.toDecisionEntity(session, "REJECT"))
-            MapeKLog.stage("KNOWLEDGE", "knowledge save user decision AR=${plan.ruleId} decision=REJECT")
-            MapeKLog.stage("STATE", plan.trace("REJECT", "SAVED"))
-        }
-        pendingPlan = null
+        adaptiveViewModel.rejectPendingAdaptation(activeSession())
     }
 
     fun undoAdaptation() {
-        val session = activeSession() ?: return
-        val plan = lastAppliedPlan ?: run {
-            MapeKLog.stage("EXECUTOR", "undo requested but no lastAppliedPlan is available")
-            MapeKLog.state("undo ignored because no applied adaptation is stored")
-            return
-        }
-        MapeKLog.stage("EXECUTOR", "undo requested AR=${plan.ruleId} currentTextScale=${adaptiveUiState.textScale}")
-        adaptiveUiStateFlow.value = engine.undo(plan, adaptiveUiState).copy(isAdaptiveMode = true)
-        log(session.logEntry(InteractionEventType.ADAPTATION_UNDONE, plan.taskId, plan.screenId, "Undid ${plan.ruleId}."))
-        scope.launch {
-            knowledge.saveUserDecision(plan.toDecisionEntity(session, "UNDO"))
-            MapeKLog.stage("KNOWLEDGE", "knowledge save user decision AR=${plan.ruleId} decision=UNDO")
-            MapeKLog.stage("STATE", plan.trace("UNDO", "SAVED"))
-        }
-        lastAppliedPlan = null
+        adaptiveViewModel.undoAdaptation(activeSession())
     }
 
     fun hideHelp() {
-        adaptiveUiStateFlow.value = adaptiveUiState.copy(contextualHelpVisible = false, undoMessageVisible = false, pendingAdaptation = null)
-        MapeKLog.stage("STATE", "AdaptiveUiState changed by hideHelp; Compose observes StateFlow and recomposes")
+        adaptiveViewModel.hideHelp()
     }
+
 
     fun completeTask(taskId: TaskId, screenId: ScreenId, message: String) {
         val session = activeSession() ?: return
@@ -397,12 +304,12 @@ fun AppNavHost(
             val completed = dao.isTaskCompleted(session.sessionId, session.currentCondition.name, taskId.name)
             MapeKLog.experiment("task completion validated from Room session=${session.sessionId} condition=${session.currentCondition} task=$taskId completed=$completed")
             val total = dao.getTotalCompletedTaskCount(session.sessionId)
-            MapeKLog.experiment("total completed tasks=$total/8")
+            //MapeKLog.experiment("total completed tasks=$total/8")
             if (completed || total >= 8) return@launch
             val started = session.startTask(taskId)
             dao.insertTaskRun(session.taskRun(taskId))
             withContext(Dispatchers.Main) {
-                engine.clearEvents(taskId)
+                adaptiveViewModel.clearEvents(taskId)
                 knowledge.clearTask(taskId)
                 sessionState = started
                 log(session.logEntry(InteractionEventType.TASK_STARTED, taskId, ScreenId.HOME, message))
@@ -411,6 +318,10 @@ fun AppNavHost(
         }
     }
 
+    Self_Adaptive_Health_AppTheme(highContrast = adaptiveUiState.highContrast) {
+        CompositionLocalProvider(
+            LocalAdaptiveEvent provides { type, screen, summary -> adaptiveViewModel.processAdaptiveEvent(activeSession(), null, screen, type, summary) }
+        ) {
     Box(modifier = Modifier.fillMaxSize()) {
         NavHost(
             navController = navController,
@@ -448,7 +359,8 @@ fun AppNavHost(
                 onContinueExistingSession = {
                     existingSetupSession?.let {
                         sessionState = it
-                        adaptiveUiStateFlow.value = AdaptiveUiState(isAdaptiveMode = it.currentCondition == ExperimentCondition.SELF_ADAPTIVE_UI)
+                        adaptiveViewModel.setAdaptiveMode(it.currentCondition == ExperimentCondition.SELF_ADAPTIVE_UI)
+                        adaptiveViewModel.resetState()
                         scope.launch { AppContainer.experimentPreferences.saveSession(it) }
                         existingSetupSession = null
                         pendingSetupSession = null
@@ -514,10 +426,8 @@ fun AppNavHost(
                         MapeKLog.nav("cancel confirmed")
                         val cancelled = session.cancelSession()
                         log(cancelled.logEntry(InteractionEventType.SESSION_CANCELLED, screenId = ScreenId.HOME, message = "Session cancelled from Home."))
-                        adaptiveUiStateFlow.value = AdaptiveUiState()
+                        adaptiveViewModel.resetState()
                         MapeKLog.state("adaptive state reset")
-                        pendingPlan = null
-                        lastAppliedPlan = null
                         scope.launch {
                             AppContainer.database.experimentDao().markParticipantSessionEnded(session.sessionId, System.currentTimeMillis(), false)
                             AppContainer.experimentPreferences.clearActiveSessionPreferences()
@@ -695,7 +605,7 @@ fun AppNavHost(
                                 log(session.logEntry(type, TaskId.T5_SUMMARY, screen, message))
                             }
                         },
-                        onAdaptiveEvent = { type, screen -> processAdaptiveEvent(TaskId.T5_SUMMARY, screen, type) },
+                        onAdaptiveEvent = { type, screen, summary -> processAdaptiveEvent(TaskId.T5_SUMMARY, screen, type, summary) },
                         onApplyAdaptation = ::applyPendingAdaptation,
                         onRejectAdaptation = ::rejectPendingAdaptation,
                         onUndoAdaptation = ::undoAdaptation,
@@ -724,9 +634,8 @@ fun AppNavHost(
                             val next = completed.moveToNextCondition()
                             sessionState = next
                             conditionTransitionState = null
-                            adaptiveUiStateFlow.value = AdaptiveUiState(isAdaptiveMode = next.currentCondition == ExperimentCondition.SELF_ADAPTIVE_UI)
-                            pendingPlan = null
-                            lastAppliedPlan = null
+                            adaptiveViewModel.setAdaptiveMode(next.currentCondition == ExperimentCondition.SELF_ADAPTIVE_UI)
+                            adaptiveViewModel.resetState()
                             scope.launch { AppContainer.experimentPreferences.saveSession(next) }
                             log(next.logEntry(InteractionEventType.CONDITION_STARTED, screenId = ScreenId.HOME, message = "Stage ${next.currentConditionIndex + 1} started."))
                             MapeKLog.experiment("moving to next condition next=${next.currentCondition}")
@@ -783,9 +692,7 @@ fun AppNavHost(
                             AppContainer.experimentPreferences.clearActiveSessionPreferences()
                             knowledge.clearCurrentTaskAdaptationMemory()
                             sessionState = null
-                            adaptiveUiStateFlow.value = AdaptiveUiState()
-                            pendingPlan = null
-                            lastAppliedPlan = null
+                            adaptiveViewModel.resetState()
                             MapeKLog.knowledge("delete current session sessionId=${current.sessionId}")
                             navController.navigate(AppRoute.ExperimentSetup.route) {
                                 popUpTo(navController.graph.startDestinationId) { inclusive = true }
@@ -802,9 +709,7 @@ fun AppNavHost(
                         knowledge.clearCurrentTaskAdaptationMemory()
                         logger.clear()
                         sessionState = null
-                        adaptiveUiStateFlow.value = AdaptiveUiState()
-                        pendingPlan = null
-                        lastAppliedPlan = null
+                        adaptiveViewModel.resetState()
                         MapeKLog.knowledge("delete all research data completed")
                         navController.navigate(AppRoute.ExperimentSetup.route) {
                             popUpTo(navController.graph.startDestinationId) { inclusive = true }
@@ -826,6 +731,8 @@ fun AppNavHost(
                 .padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
             snackbar = { data -> AdaptiveSnackbar(data) }
         )
+    }
+        }
     }
 }
 

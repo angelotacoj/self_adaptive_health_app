@@ -52,7 +52,7 @@ fun ContextualHelpBox(
         OutlinedCard(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.outlinedCardColors(containerColor = Color(0xFFE8F3FF))
+            colors = CardDefaults.outlinedCardColors(containerColor = if (state.highContrast) MaterialTheme.colorScheme.surface else Color(0xFFE8F3FF))
         ) {
             Column(
                 modifier = Modifier.padding(20.dp),
@@ -62,7 +62,7 @@ fun ContextualHelpBox(
                     "Ayuda del sistema",
                     style = MaterialTheme.typography.titleLarge.scaled(state),
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF275E83)
+                    color = if (state.highContrast) MaterialTheme.colorScheme.primary else Color(0xFF275E83)
                 )
                 Text(state.contextualHelpMessage ?: "", style = MaterialTheme.typography.bodyLarge.scaled(state))
                 LargeSecondaryButton(text = "Entendido, ocultar", onClick = onHide, adaptiveUiState = state)
@@ -123,6 +123,23 @@ fun AdaptiveConfirmationDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Text(pending.message, style = MaterialTheme.typography.bodyLarge.scaled(adaptiveUiState))
+                if (pending.reviewSummary != null) {
+                    ElevatedCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(pending.reviewSummary.title, style = MaterialTheme.typography.titleMedium.scaled(adaptiveUiState), fontWeight = FontWeight.Bold)
+                            pending.reviewSummary.details.forEach { (label, value) ->
+                                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Text(label, style = MaterialTheme.typography.bodyMedium.scaled(adaptiveUiState), color = MaterialTheme.colorScheme.primary)
+                                    Text(value, style = MaterialTheme.typography.bodyLarge.scaled(adaptiveUiState))
+                                }
+                            }
+                        }
+                    }
+                }
                 LargePrimaryButton(text = "Confirmar y continuar", onClick = onConfirm, adaptiveUiState = adaptiveUiState)
                 LargeSecondaryButton(text = "Revisar datos", onClick = onEdit, adaptiveUiState = adaptiveUiState)
                 LargeSecondaryButton(text = "Cancelar", onClick = onCancel, adaptiveUiState = adaptiveUiState)
@@ -150,7 +167,7 @@ fun UndoAdaptationCard(
         OutlinedCard(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.outlinedCardColors(containerColor = Color(0xFFFFF7E8))
+            colors = CardDefaults.outlinedCardColors(containerColor = if (adaptiveUiState.highContrast) MaterialTheme.colorScheme.surface else Color(0xFFFFF7E8))
         ) {
             Column(
                 modifier = Modifier.padding(18.dp),
@@ -162,15 +179,20 @@ fun UndoAdaptationCard(
                         modifier = Modifier.weight(1f),
                         style = MaterialTheme.typography.titleMedium.scaled(adaptiveUiState),
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF8B5E34)
+                        color = if (adaptiveUiState.highContrast) MaterialTheme.colorScheme.primary else Color(0xFF8B5E34)
                     )
                     IconButton(onClick = { showDetails = true }) {
-                        Text(
-                            text = "i",
-                            style = MaterialTheme.typography.titleLarge.scaled(adaptiveUiState),
-                            fontWeight = FontWeight.ExtraBold,
-                            color = Color(0xFF8B5E34)
-                        )
+                        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            if (adaptiveUiState.showIconLabels) {
+                                Text("Información", style = MaterialTheme.typography.labelLarge.scaled(adaptiveUiState), modifier = Modifier.padding(end = 4.dp))
+                            }
+                            Text(
+                                text = "i",
+                                style = MaterialTheme.typography.titleLarge.scaled(adaptiveUiState),
+                                fontWeight = FontWeight.ExtraBold,
+                                color = if (adaptiveUiState.highContrast) MaterialTheme.colorScheme.primary else Color(0xFF8B5E34)
+                            )
+                        }
                     }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -235,7 +257,7 @@ fun AdaptiveSnackbar(data: SnackbarData) {
             .fillMaxWidth()
             .padding(horizontal = 4.dp),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.elevatedCardColors(containerColor = Color(0xFF123F3A)),
+        colors = CardDefaults.elevatedCardColors(containerColor = if (MaterialTheme.colorScheme.primary == Color(0xFF000000)) Color(0xFF000000) else Color(0xFF123F3A)),
         elevation = CardDefaults.elevatedCardElevation(defaultElevation = 10.dp)
     ) {
         Column(
@@ -246,7 +268,7 @@ fun AdaptiveSnackbar(data: SnackbarData) {
                 text = "AURA ajustó la interfaz",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFFEAF5F3)
+                color = if (MaterialTheme.colorScheme.primary == Color(0xFF000000)) Color(0xFFFFFFFF) else Color(0xFFEAF5F3)
             )
             Text(
                 text = data.visuals.message,

@@ -1,13 +1,22 @@
 package com.angelotacoj.self_adaptive_health_app.adaptive.domain.repository
 
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.AdaptationRuleId
+import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.KnowledgeSnapshot
 import com.angelotacoj.self_adaptive_health_app.core.logging.DebugLogEntry
+import com.angelotacoj.self_adaptive_health_app.core.logging.ScreenId
+import com.angelotacoj.self_adaptive_health_app.core.logging.TaskId
 import com.angelotacoj.self_adaptive_health_app.core.persistence.datastore.ExperimentPreferences
 import com.angelotacoj.self_adaptive_health_app.core.persistence.room.AdaptationEventEntity
+import com.angelotacoj.self_adaptive_health_app.core.persistence.room.AdaptationPreferenceEntity
 import com.angelotacoj.self_adaptive_health_app.core.persistence.room.ExperimentDao
 import com.angelotacoj.self_adaptive_health_app.core.persistence.room.InteractionEventEntity
+import com.angelotacoj.self_adaptive_health_app.core.persistence.room.TaskStateEntity
 import com.angelotacoj.self_adaptive_health_app.core.persistence.room.UserDecisionEventEntity
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 
 class PersistentKnowledgeRepository(
     private val preferences: ExperimentPreferences,
@@ -22,8 +31,39 @@ class PersistentKnowledgeRepository(
         return preferences.sessionSnapshot.first().currentCondition
     }
 
-    override suspend fun wasRejectedInCurrentTask(taskId: com.angelotacoj.self_adaptive_health_app.core.logging.TaskId?, ruleId: AdaptationRuleId): Boolean {
-        return super.wasRejectedInCurrentTask(taskId, ruleId)
+    override fun snapshot(taskId: TaskId?, screenId: ScreenId?): KnowledgeSnapshot {
+        if (taskId != null) {
+            runBlocking(Dispatchers.IO) {
+                val prefs = dao.getPreferencesForTask(taskId.name)
+                prefs.forEach { pref ->
+                    if (pref.suppressAutomatic) {
+                        val rules = rejectedByTask.getOrPut(taskId) { mutableSetOf() }
+                        rules.add(AdaptationRuleId.valueOf(pref.ruleId))
+                    }
+                }
+            }
+        }
+        return super.snapshot(taskId, screenId)
+    }
+
+    override fun rememberRejected(taskId: TaskId?, ruleId: AdaptationRuleId) {
+        super.rememberRejected(taskId, ruleId)
+        if (taskId != null) {
+            MainScope().launch(Dispatchers.IO) {
+                val existing = dao.getAdaptationPreference(ruleId.name, taskId.name, "ANY")
+                val newRejectedCount = (existing?.rejectedCount ?: 0) + 1
+                dao.insertAdaptationPreference(
+                    AdaptationPreferenceEntity(
+                        ruleId = ruleId.name,
+                        taskId = taskId.name,
+                        screenId = "ANY",
+                        rejectedCount = newRejectedCount,
+                        lastRejectedAt = System.currentTimeMillis(),
+                        suppressAutomatic = newRejectedCount >= 2
+                    )
+                )
+            }
+        }
     }
 
     override suspend fun saveInteractionEvent(entry: DebugLogEntry, oisCode: String?) {
@@ -50,6 +90,18 @@ class PersistentKnowledgeRepository(
 
     override suspend fun saveUserDecision(entity: UserDecisionEventEntity) {
         dao.insertUserDecisionEvent(entity)
+    }
+
+    override suspend fun markUndone(adaptationEventId: String) {
+        dao.markAdaptationEventUndone(adaptationEventId)
+    }
+
+    override suspend fun saveTaskState(entity: TaskStateEntity) {
+        dao.insertTaskState(entity)
+    }
+
+    override suspend fun getTaskState(taskId: TaskId, screenId: ScreenId): TaskStateEntity? {
+        return dao.getTaskState(taskId.name, screenId.name)
     }
 
     override suspend fun clearCurrentSession() {
