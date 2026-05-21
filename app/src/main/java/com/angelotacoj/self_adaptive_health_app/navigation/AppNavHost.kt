@@ -16,41 +16,43 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.angelotacoj.self_adaptive_health_app.adaptive.domain.engine.AdaptationEngineResult
-import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.AdaptationPlan
-import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.AdaptiveInteractionEvent
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.angelotacoj.self_adaptive_health_app.adaptive.domain.engine.ExtendedMapeKCoordinator
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.AdaptiveInteractionEventType
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.ExperimentCondition
-import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.TaskInteractionState
-import com.angelotacoj.self_adaptive_health_app.adaptive.presentation.components.AdaptiveSnackbar
-import androidx.compose.runtime.CompositionLocalProvider
-import com.angelotacoj.self_adaptive_health_app.adaptive.presentation.components.LocalAdaptiveEvent
-import com.angelotacoj.self_adaptive_health_app.ui.theme.Self_Adaptive_Health_AppTheme
-import com.angelotacoj.self_adaptive_health_app.adaptive.presentation.viewmodel.AdaptiveViewModel
-import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.ViewModel
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.repository.KnowledgeRepository
-import com.angelotacoj.self_adaptive_health_app.adaptive.domain.engine.ExtendedMapeKCoordinator
+import com.angelotacoj.self_adaptive_health_app.adaptive.presentation.components.LocalAdaptiveEvent
+import com.angelotacoj.self_adaptive_health_app.adaptive.presentation.components.AdaptiveSnackbar
 import com.angelotacoj.self_adaptive_health_app.adaptive.presentation.state.AdaptiveUiState
+import com.angelotacoj.self_adaptive_health_app.adaptive.presentation.viewmodel.AdaptiveViewModel
 import com.angelotacoj.self_adaptive_health_app.core.logging.DebugLogEntry
 import com.angelotacoj.self_adaptive_health_app.core.logging.ExperimentLogger
 import com.angelotacoj.self_adaptive_health_app.core.logging.InteractionEventType
 import com.angelotacoj.self_adaptive_health_app.core.logging.MapeKLog
 import com.angelotacoj.self_adaptive_health_app.core.logging.ScreenId
 import com.angelotacoj.self_adaptive_health_app.core.logging.TaskId
-import com.angelotacoj.self_adaptive_health_app.core.model.ExperimentSessionState
 import com.angelotacoj.self_adaptive_health_app.core.model.ExperimentGroup
+import com.angelotacoj.self_adaptive_health_app.core.model.ExperimentSessionState
+import com.angelotacoj.self_adaptive_health_app.core.model.completedTaskCount
 import com.angelotacoj.self_adaptive_health_app.core.model.conditionOrder
-import com.angelotacoj.self_adaptive_health_app.core.persistence.room.AdaptationEventEntity
+import com.angelotacoj.self_adaptive_health_app.core.model.isCurrentConditionComplete
+import com.angelotacoj.self_adaptive_health_app.core.model.isExperimentComplete
+import com.angelotacoj.self_adaptive_health_app.core.model.totalRequiredTaskRuns
 import com.angelotacoj.self_adaptive_health_app.core.persistence.room.ParticipantSessionEntity
 import com.angelotacoj.self_adaptive_health_app.core.persistence.room.TaskRunEntity
-import com.angelotacoj.self_adaptive_health_app.core.persistence.room.UserDecisionEventEntity
+import com.angelotacoj.self_adaptive_health_app.core.ui.InstructionCard
+import com.angelotacoj.self_adaptive_health_app.core.ui.LargePrimaryButton
+import com.angelotacoj.self_adaptive_health_app.core.ui.ScreenContainer
 import com.angelotacoj.self_adaptive_health_app.debug.DebugLogsScreen
 import com.angelotacoj.self_adaptive_health_app.di.AppContainer
 import com.angelotacoj.self_adaptive_health_app.experiment.ExperimentSetupScreen
@@ -75,25 +77,22 @@ import com.angelotacoj.self_adaptive_health_app.healthtasks.summary.SummaryViewM
 import com.angelotacoj.self_adaptive_health_app.healthtasks.wellbeing.WellBeingAction
 import com.angelotacoj.self_adaptive_health_app.healthtasks.wellbeing.WellBeingScreen
 import com.angelotacoj.self_adaptive_health_app.healthtasks.wellbeing.WellBeingViewModel
-import androidx.compose.material3.SnackbarDuration
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import com.angelotacoj.self_adaptive_health_app.core.ui.InstructionCard
-import com.angelotacoj.self_adaptive_health_app.core.ui.LargePrimaryButton
-import com.angelotacoj.self_adaptive_health_app.core.ui.ScreenContainer
-import kotlinx.coroutines.launch
+import com.angelotacoj.self_adaptive_health_app.ui.theme.Self_Adaptive_Health_AppTheme
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.util.UUID
 
 
 class AdaptiveViewModelFactory(
     private val coordinator: ExtendedMapeKCoordinator,
     private val knowledge: KnowledgeRepository
 ) : ViewModelProvider.Factory {
+    @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        require(modelClass.isAssignableFrom(AdaptiveViewModel::class.java)) {
+            "Unknown ViewModel class ${modelClass.name}"
+        }
         return AdaptiveViewModel(coordinator, knowledge) as T
     }
 }
@@ -104,7 +103,7 @@ fun AppNavHost(
 ) {
     var sessionState by remember { mutableStateOf<ExperimentSessionState?>(null) }
     val knowledge = AppContainer.knowledgeRepository
-    val engine = remember { com.angelotacoj.self_adaptive_health_app.adaptive.domain.engine.ExtendedMapeKCoordinator(knowledge) }
+    val engine = remember { ExtendedMapeKCoordinator(knowledge) }
     val adaptiveViewModel: AdaptiveViewModel = viewModel(factory = AdaptiveViewModelFactory(engine, knowledge))
     val adaptiveUiState by adaptiveViewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -254,41 +253,43 @@ fun AppNavHost(
     fun completeTask(taskId: TaskId, screenId: ScreenId, message: String) {
         val session = activeSession() ?: return
         val completedTaskState = session.finishCurrentTask()
-        val requiredTasks = setOf(TaskId.T1_ACCESS, TaskId.T2_APPOINTMENT, TaskId.T3_WELL_BEING, TaskId.T4_REMINDER, TaskId.T5_SUMMARY)
-        val completedForCondition = completedTaskState.completedTasksByCondition[session.currentCondition].orEmpty()
-        val conditionDone = completedForCondition.containsAll(requiredTasks)
-        val totalCompleted = completedTaskState.completedTasksByCondition.values.sumOf { it.size }
-        val finalDone = conditionDone && totalCompleted >= 10
-        sessionState = completedTaskState
+        val conditionDone = completedTaskState.isCurrentConditionComplete()
+        val finalDone = completedTaskState.isExperimentComplete()
+        val nextState = if (finalDone) completedTaskState.finishSession() else completedTaskState
+        if (finalDone) {
+            sessionCompletedState = nextState
+        } else {
+            sessionState = nextState
+        }
         log(session.logEntry(InteractionEventType.TASK_COMPLETED, taskId, screenId, message))
         if (conditionDone) {
             log(session.logEntry(InteractionEventType.CONDITION_COMPLETED, screenId = screenId, message = "${session.currentCondition} condition completed."))
             MapeKLog.experiment("condition completed condition=${session.currentCondition}")
         }
         scope.launch {
-            AppContainer.database.experimentDao().markTaskCompleted(
+            val dao = AppContainer.database.experimentDao()
+            dao.markTaskCompleted(
                 sessionId = session.sessionId,
                 condition = session.currentCondition.name,
                 taskId = taskId.name,
                 endedAt = System.currentTimeMillis()
             )
-            AppContainer.experimentPreferences.saveSession(completedTaskState)
-            MapeKLog.experiment("total completed tasks=${AppContainer.database.experimentDao().getTotalCompletedTaskCount(session.sessionId)}/10")
+            if (finalDone) {
+                dao.markParticipantSessionEnded(nextState.sessionId, System.currentTimeMillis(), true)
+            }
+            AppContainer.experimentPreferences.saveSession(nextState)
+            MapeKLog.experiment("total completed tasks=${dao.getTotalCompletedTaskCount(session.sessionId)}/${session.totalRequiredTaskRuns()}")
         }
         if (conditionDone && !finalDone && completedTaskState.currentConditionIndex < completedTaskState.conditionOrder.lastIndex) {
             conditionTransitionState = completedTaskState
             navController.navigate(AppRoute.ConditionTransition.route)
-        }
-        if (finalDone) {
-            val finished = completedTaskState.finishSession()
-            sessionState = finished
-            sessionCompletedState = finished
-            scope.launch {
-                AppContainer.database.experimentDao().markParticipantSessionEnded(finished.sessionId, System.currentTimeMillis(), true)
-                AppContainer.experimentPreferences.saveSession(finished)
+        } else if (finalDone) {
+            MapeKLog.experiment("session completed total=${nextState.completedTaskCount()}/${nextState.totalRequiredTaskRuns()}")
+            navController.navigate(AppRoute.SessionCompleted.route) {
+                popUpTo(AppRoute.Home.route) { inclusive = true }
+                launchSingleTop = true
             }
-            MapeKLog.experiment("session completed total=10/10")
-            navController.navigate(AppRoute.SessionCompleted.route)
+            sessionState = nextState
         }
     }
 
@@ -304,8 +305,8 @@ fun AppNavHost(
             val completed = dao.isTaskCompleted(session.sessionId, session.currentCondition.name, taskId.name)
             MapeKLog.experiment("task completion validated from Room session=${session.sessionId} condition=${session.currentCondition} task=$taskId completed=$completed")
             val total = dao.getTotalCompletedTaskCount(session.sessionId)
-            //MapeKLog.experiment("total completed tasks=$total/8")
-            if (completed || total >= 8) return@launch
+            MapeKLog.experiment("total completed tasks=$total/${session.totalRequiredTaskRuns()}")
+            if (completed || total >= session.totalRequiredTaskRuns()) return@launch
             val started = session.startTask(taskId)
             dao.insertTaskRun(session.taskRun(taskId))
             withContext(Dispatchers.Main) {
@@ -334,7 +335,7 @@ fun AppNavHost(
             ExperimentSetupScreen(
                 state = state,
                 existingSessionMessage = existingSetupSession?.let {
-                    "Ya existe una sesión para ${it.participantCode}. Condición actual: ${it.currentCondition}. Tareas completadas: ${it.completedTasksByCondition.values.sumOf { tasks -> tasks.size }}/10."
+                    "Ya existe una sesión para ${it.participantCode}. Condición actual: ${it.currentCondition}. Tareas completadas: ${it.completedTaskCount()}/${it.totalRequiredTaskRuns()}."
                 },
                 onAction = viewModel::onAction,
                 onStartSession = { newSession ->
@@ -674,7 +675,7 @@ fun AppNavHost(
                 if (completed != null) {
                     InstructionCard(
                         "Resumen",
-                        listOf("Total completado: ${completed.completedTasksByCondition.values.sumOf { it.size }}/10")
+                        listOf("Total completado: ${completed.completedTaskCount()}/${completed.totalRequiredTaskRuns()}")
                     )
                 }
             }
@@ -763,32 +764,6 @@ private fun ExperimentSessionState.logEntry(
     )
 }
 
-private fun AdaptiveInteractionEventType.toLogType(): InteractionEventType {
-    return when (this) {
-        AdaptiveInteractionEventType.TOUCH_ERROR -> InteractionEventType.TOUCH_ERROR
-        AdaptiveInteractionEventType.PROLONGED_TIME -> InteractionEventType.LONG_TIME_TRIGGERED
-        AdaptiveInteractionEventType.CONFIRMATION_PAUSE -> InteractionEventType.CONFIRMATION_PAUSE
-        AdaptiveInteractionEventType.BACK_PRESSED -> InteractionEventType.BACK_PRESSED
-        AdaptiveInteractionEventType.HELP_REQUESTED -> InteractionEventType.HELP_REQUESTED
-        AdaptiveInteractionEventType.FIELD_ERROR -> InteractionEventType.FIELD_ERROR
-        AdaptiveInteractionEventType.ADAPTATION_REJECTED -> InteractionEventType.ADAPTATION_REJECTED
-        AdaptiveInteractionEventType.SENSITIVE_ACTION -> InteractionEventType.SENSITIVE_ACTION
-    }
-}
-
-private fun AdaptiveInteractionEventType.toOisCode(): String {
-    return when (this) {
-        AdaptiveInteractionEventType.TOUCH_ERROR -> "OIS01_TOUCH_ERRORS"
-        AdaptiveInteractionEventType.PROLONGED_TIME -> "OIS02_PROLONGED_TIME"
-        AdaptiveInteractionEventType.CONFIRMATION_PAUSE -> "OIS03_CONFIRMATION_PAUSE"
-        AdaptiveInteractionEventType.BACK_PRESSED -> "OIS04_BACKTRACKING"
-        AdaptiveInteractionEventType.HELP_REQUESTED -> "OIS05_HELP_REQUEST"
-        AdaptiveInteractionEventType.FIELD_ERROR -> "OIS06_FIELD_ERROR"
-        AdaptiveInteractionEventType.ADAPTATION_REJECTED -> "OIS07_ADAPTATION_REJECTED"
-        AdaptiveInteractionEventType.SENSITIVE_ACTION -> "OIS08_SENSITIVE_ACTION"
-    }
-}
-
 private fun ExperimentSessionState.taskRun(taskId: TaskId): TaskRunEntity {
     return TaskRunEntity(
         taskRunId = "${sessionId}_${taskId.name}_${System.currentTimeMillis()}",
@@ -801,48 +776,4 @@ private fun ExperimentSessionState.taskRun(taskId: TaskId): TaskRunEntity {
         endedAt = null,
         completed = false
     )
-}
-
-private fun AdaptationPlan.toEntity(
-    session: ExperimentSessionState,
-    applied: Boolean,
-    userDecision: String?
-): AdaptationEventEntity {
-    return AdaptationEventEntity(
-        adaptationEventId = UUID.randomUUID().toString(),
-        sessionId = session.sessionId,
-        participantCode = session.participantCode,
-        condition = session.currentCondition.name,
-        taskId = taskId?.name,
-        screenId = screenId?.name,
-        ruleId = ruleId.name,
-        inferredDifficulty = difficulties.joinToString(",") { it.name },
-        uiModifications = modifications.joinToString(",") { it.name },
-        validationType = validationType.name,
-        systemDecision = "PLAN_CREATED",
-        userDecision = userDecision,
-        applied = applied,
-        undone = false,
-        timestamp = System.currentTimeMillis()
-    )
-}
-
-private fun AdaptationPlan.toDecisionEntity(
-    session: ExperimentSessionState,
-    decision: String
-): UserDecisionEventEntity {
-    return UserDecisionEventEntity(
-        decisionId = UUID.randomUUID().toString(),
-        adaptationEventId = null,
-        sessionId = session.sessionId,
-        participantCode = session.participantCode,
-        taskId = taskId?.name,
-        screenId = screenId?.name,
-        decision = decision,
-        timestamp = System.currentTimeMillis()
-    )
-}
-
-private fun AdaptationPlan.trace(validationDecision: String, knowledgeSave: String): String {
-    return "trace=interaction event -> OIS=${signals.joinToString(prefix = "[", postfix = "]") { it.name }} -> DI=${difficulties.joinToString(prefix = "[", postfix = "]") { it.name }} -> AR=$ruleId -> validation decision=$validationDecision -> UI modification=${modifications.joinToString(prefix = "[", postfix = "]") { it.name }} -> knowledge save=$knowledgeSave"
 }

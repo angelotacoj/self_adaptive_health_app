@@ -12,9 +12,9 @@ class ExperimentSessionStateTest {
     fun groupACompletesExactlyTenTasks_staticThenSelfAdaptive() {
         val finished = completeTenTasks(ExperimentGroup.GroupA)
 
-        assertEquals(5, finished.completedTasksByCondition.getValue(ExperimentCondition.STATIC_UI).size)
-        assertEquals(5, finished.completedTasksByCondition.getValue(ExperimentCondition.SELF_ADAPTIVE_UI).size)
-        assertEquals(10, finished.completedTasksByCondition.values.sumOf { it.size })
+        assertEquals(ExperimentTasksPerCondition, finished.completedTasksByCondition.getValue(ExperimentCondition.STATIC_UI).size)
+        assertEquals(ExperimentTasksPerCondition, finished.completedTasksByCondition.getValue(ExperimentCondition.SELF_ADAPTIVE_UI).size)
+        assertEquals(finished.totalRequiredTaskRuns(), finished.completedTaskCount())
         assertFalse(finished.isSessionActive)
     }
 
@@ -22,9 +22,9 @@ class ExperimentSessionStateTest {
     fun groupBCompletesExactlyTenTasks_selfAdaptiveThenStatic() {
         val finished = completeTenTasks(ExperimentGroup.GroupB)
 
-        assertEquals(5, finished.completedTasksByCondition.getValue(ExperimentCondition.SELF_ADAPTIVE_UI).size)
-        assertEquals(5, finished.completedTasksByCondition.getValue(ExperimentCondition.STATIC_UI).size)
-        assertEquals(10, finished.completedTasksByCondition.values.sumOf { it.size })
+        assertEquals(ExperimentTasksPerCondition, finished.completedTasksByCondition.getValue(ExperimentCondition.SELF_ADAPTIVE_UI).size)
+        assertEquals(ExperimentTasksPerCondition, finished.completedTasksByCondition.getValue(ExperimentCondition.STATIC_UI).size)
+        assertEquals(finished.totalRequiredTaskRuns(), finished.completedTaskCount())
         assertFalse(finished.isSessionActive)
     }
 
@@ -54,12 +54,12 @@ class ExperimentSessionStateTest {
             currentDataSet = dataSet
         )
 
-        taskSet.forEach { taskId ->
+        ExperimentTaskOrder.forEach { taskId ->
             state = state.startTask(taskId).finishCurrentTask()
         }
         state = state.moveToNextCondition()
 
-        assertEquals(5, state.completedTasksByCondition.getValue(ExperimentCondition.STATIC_UI).size)
+        assertEquals(ExperimentTasksPerCondition, state.completedTasksByCondition.getValue(ExperimentCondition.STATIC_UI).size)
         assertEquals(emptySet<TaskId>(), state.completedTasksByCondition[ExperimentCondition.SELF_ADAPTIVE_UI].orEmpty())
         assertEquals(ExperimentCondition.SELF_ADAPTIVE_UI, state.currentCondition)
     }
@@ -74,7 +74,7 @@ class ExperimentSessionStateTest {
         )
         repeat(group.conditionOrder().size) { conditionIndex ->
             assertEquals(conditionIndex, state.currentConditionIndex)
-            taskSet.forEach { taskId ->
+            ExperimentTaskOrder.forEach { taskId ->
                 state = state.startTask(taskId).finishCurrentTask()
             }
             state = if (conditionIndex == group.conditionOrder().lastIndex) {
@@ -85,12 +85,4 @@ class ExperimentSessionStateTest {
         }
         return state
     }
-
-    private val taskSet = listOf(
-        TaskId.T1_ACCESS,
-        TaskId.T2_APPOINTMENT,
-        TaskId.T3_WELL_BEING,
-        TaskId.T4_REMINDER,
-        TaskId.T5_SUMMARY
-    )
 }

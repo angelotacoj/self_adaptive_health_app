@@ -21,8 +21,10 @@ import androidx.compose.ui.unit.dp
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.ExperimentCondition
 import com.angelotacoj.self_adaptive_health_app.core.logging.DebugLogEntry
 import com.angelotacoj.self_adaptive_health_app.core.logging.ExperimentLogger
-import com.angelotacoj.self_adaptive_health_app.core.logging.TaskId
+import com.angelotacoj.self_adaptive_health_app.core.model.ExperimentTaskOrder
 import com.angelotacoj.self_adaptive_health_app.core.model.ExperimentSessionState
+import com.angelotacoj.self_adaptive_health_app.core.model.completedTaskCount
+import com.angelotacoj.self_adaptive_health_app.core.model.totalRequiredTaskRuns
 import com.angelotacoj.self_adaptive_health_app.di.AppContainer
 import com.angelotacoj.self_adaptive_health_app.core.ui.LargeDestructiveButton
 import com.angelotacoj.self_adaptive_health_app.core.ui.LargeSecondaryButton
@@ -122,15 +124,13 @@ fun DebugLogsScreen(
         navigationLabel = "Volver",
         onNavigationClick = onBack
     ) {
-        //LargeSecondaryButton(text = "Volver al inicio", onClick = onBack)
-
         ResearcherSectionCard(if (session != null) "Resumen de sesión actual" else "Alcance del panel") {
             Text(text = if (session != null) "Modo: sesión actual filtrada por participante activo" else "Modo: histórico global del dispositivo")
             Text(text = "Participante: ${session?.participantCode ?: "Ninguno"}")
             Text(text = "Session ID: ${session?.sessionId ?: "No aplica"}")
             Text(text = "Grupo: ${session?.group?.label ?: "Ninguno"}")
             Text(text = "Condición actual: ${session?.currentCondition ?: "Ninguna"}")
-            Text(text = "Total completado: ${session?.completedTasksByCondition?.values?.sumOf { it.size } ?: 0}/8")
+            Text(text = "Total completado: ${session?.completedTaskCount() ?: 0}/${session?.totalRequiredTaskRuns() ?: 0}")
         }
 
         ResearcherSectionCard("Registro en DB") {
@@ -191,13 +191,7 @@ private fun ConditionTaskStatus(
 ) {
     val completed = session?.completedTasksByCondition?.get(condition).orEmpty()
     Text(text = title, fontWeight = FontWeight.SemiBold)
-    listOf(
-        TaskId.T1_ACCESS,
-        TaskId.T2_APPOINTMENT,
-        TaskId.T3_WELL_BEING,
-        TaskId.T4_REMINDER,
-        TaskId.T5_SUMMARY
-    ).forEach { task ->
+    ExperimentTaskOrder.forEach { task ->
         val status = if (task in completed) "Completada" else "Pendiente"
         Text(text = "${task.label}: $status")
     }

@@ -71,7 +71,7 @@ fun SummaryScreen(
                     SummaryStep.Details -> onAction(SummaryAction.SaveInformationClicked)
                     SummaryStep.ReinforcedConfirmation -> {
                         onAction(SummaryAction.ConfirmClicked)
-                        onLog(InteractionEventType.TASK_COMPLETED, ScreenId.SUMMARY_FINAL, "T4 completed with confirmation.")
+                        onLog(InteractionEventType.TASK_COMPLETED, ScreenId.SUMMARY_FINAL, "T5 completed with confirmation.")
                     }
                     else -> Unit
                 }
@@ -128,7 +128,7 @@ fun SummaryScreen(
                     primaryText = "Confirmar",
                     onPrimary = {
                         onAction(SummaryAction.ConfirmClicked)
-                        onLog(InteractionEventType.TASK_COMPLETED, ScreenId.SUMMARY_FINAL, "T4 completed with confirmation.")
+                        onLog(InteractionEventType.TASK_COMPLETED, ScreenId.SUMMARY_FINAL, "T5 completed with confirmation.")
                     },
                     secondaryText = "Editar",
                     onSecondary = { onAction(SummaryAction.EditClicked) }

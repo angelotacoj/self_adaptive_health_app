@@ -103,6 +103,31 @@ data class FakeHealthDataSet(
     val reminder: ReminderTemplate
 )
 
+val ExperimentTaskOrder: List<TaskId> = listOf(
+    TaskId.T1_ACCESS,
+    TaskId.T2_APPOINTMENT,
+    TaskId.T3_WELL_BEING,
+    TaskId.T4_REMINDER,
+    TaskId.T5_SUMMARY
+)
+
+val ExperimentTasksPerCondition: Int
+    get() = ExperimentTaskOrder.size
+
+fun ExperimentSessionState.totalRequiredTaskRuns(): Int = ExperimentTaskOrder.size * conditionOrder.size
+
+fun ExperimentSessionState.completedTaskCount(): Int = completedTasksByCondition.values.sumOf { it.size }
+
+fun ExperimentSessionState.isCurrentConditionComplete(): Boolean {
+    return completedTasksByCondition[currentCondition].orEmpty().containsAll(ExperimentTaskOrder)
+}
+
+fun ExperimentSessionState.isExperimentComplete(): Boolean {
+    return conditionOrder.all { condition ->
+        completedTasksByCondition[condition].orEmpty().containsAll(ExperimentTaskOrder)
+    }
+}
+
 fun ExperimentGroup.conditionOrder(): List<ExperimentCondition> {
     return when (this) {
         ExperimentGroup.GroupA -> listOf(ExperimentCondition.STATIC_UI, ExperimentCondition.SELF_ADAPTIVE_UI)

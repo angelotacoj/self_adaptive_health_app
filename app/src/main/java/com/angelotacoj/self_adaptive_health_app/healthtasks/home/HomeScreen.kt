@@ -12,6 +12,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.ExperimentCondition
 import com.angelotacoj.self_adaptive_health_app.core.logging.TaskId
+import com.angelotacoj.self_adaptive_health_app.core.model.ExperimentTasksPerCondition
 import com.angelotacoj.self_adaptive_health_app.core.ui.HeroHeaderCard
 import com.angelotacoj.self_adaptive_health_app.core.ui.LargeDestructiveButton
 import com.angelotacoj.self_adaptive_health_app.core.ui.LargeSecondaryButton
@@ -55,7 +56,7 @@ fun HomeScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Esta es una sesión experimental con datos simulados.")
-                    Text("Debe completar cinco tareas en la etapa actual. Luego la aplicación le avisará cuándo continuar con la siguiente etapa.")
+                    Text("Debe completar $ExperimentTasksPerCondition tareas en la etapa actual. Luego la aplicación le avisará cuándo continuar con la siguiente etapa.")
                     Text("Puede usar Volver o Cancelar tarea si necesita regresar. No ingrese datos personales reales.")
                 }
             },

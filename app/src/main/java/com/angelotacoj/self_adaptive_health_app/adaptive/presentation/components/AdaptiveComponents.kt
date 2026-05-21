@@ -117,6 +117,7 @@ fun AdaptiveConfirmationDialog(
 ) {
     if (!adaptiveUiState.isAdaptiveMode || pending == null || pending.validationType != ValidationType.EXPLICIT) return
     AlertDialog(
+        containerColor = Color.White,
         onDismissRequest = onCancel,
         shape = RoundedCornerShape(28.dp),
         title = { Text(pending.title, style = MaterialTheme.typography.titleLarge.scaled(adaptiveUiState)) },
