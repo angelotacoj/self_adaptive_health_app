@@ -76,6 +76,46 @@ fun MainComposeRule.completeT1AccessToUnlockTasks() {
     }
 }
 
+fun MainComposeRule.completeT2AppointmentForSequentialAccess() {
+    openTaskByTitle("T2 Consultar cita médica")
+    onNodeWithText("Ver lista de citas").performScrollTo().performClick()
+    onAllNodesWithText("Abrir", substring = true)[0].performScrollTo().performClick()
+    onNodeWithText("Continuar a confirmación").performScrollTo().performClick()
+    onNodeWithText("Sí, continuar").performScrollTo().performClick()
+    onNodeWithText("Volver al inicio").performScrollTo().performClick()
+    waitUntil(timeoutMillis = 5_000) {
+        onAllNodesWithText("Inicio").fetchSemanticsNodes().isNotEmpty()
+    }
+}
+
+fun MainComposeRule.completeT3WellBeingForSequentialAccess() {
+    openTaskByTitle("T3 Registro de bienestar")
+    onNodeWithText("Iniciar formulario").performScrollTo().performClick()
+    onNode(wellBeingValueField()).performTextInput("5")
+    onNodeWithText("Validar valor").performScrollTo().performClick()
+    onNodeWithText("Revisar antes de guardar").performScrollTo().performClick()
+    onNodeWithText("Guardar").performScrollTo().performClick()
+    onNodeWithText("Confirmar y continuar").performClick()
+    onNodeWithText("Volver al inicio").performScrollTo().performClick()
+    waitUntil(timeoutMillis = 5_000) {
+        onAllNodesWithText("Inicio").fetchSemanticsNodes().isNotEmpty()
+    }
+}
+
+fun MainComposeRule.completeT4ReminderForSequentialAccess() {
+    openTaskByTitle("T4 Recordatorio")
+    onNodeWithText("Crear recordatorio").performScrollTo().performClick()
+    onNodeWithText("Usar esta actividad").performScrollTo().performClick()
+    onNodeWithText("Usar esta hora").performScrollTo().performClick()
+    onNodeWithText("Usar esta frecuencia").performScrollTo().performClick()
+    onNodeWithText("Guardar recordatorio").performScrollTo().performClick()
+    onNodeWithText("Confirmar y continuar").performClick()
+    onNodeWithText("Volver al inicio").performScrollTo().performClick()
+    waitUntil(timeoutMillis = 5_000) {
+        onAllNodesWithText("Inicio").fetchSemanticsNodes().isNotEmpty()
+    }
+}
+
 fun MainComposeRule.pressBackBestEffort(times: Int = 4) {
     runCatching {
         repeat(times) {
@@ -87,6 +127,10 @@ fun MainComposeRule.pressBackBestEffort(times: Int = 4) {
 
 fun editableTextField(label: String): SemanticsMatcher {
     return hasSetTextAction() and hasText(label, substring = true)
+}
+
+fun wellBeingValueField(): SemanticsMatcher {
+    return hasSetTextAction()
 }
 
 private fun androidx.compose.ui.test.SemanticsNodeInteraction.assertExistsCompat() {

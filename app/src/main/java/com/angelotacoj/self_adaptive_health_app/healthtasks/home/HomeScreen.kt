@@ -13,6 +13,8 @@ import androidx.compose.ui.unit.dp
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.ExperimentCondition
 import com.angelotacoj.self_adaptive_health_app.core.logging.TaskId
 import com.angelotacoj.self_adaptive_health_app.core.model.ExperimentTasksPerCondition
+import com.angelotacoj.self_adaptive_health_app.core.model.isTaskAvailableInCurrentCondition
+import com.angelotacoj.self_adaptive_health_app.core.model.isTaskCompletedInCurrentCondition
 import com.angelotacoj.self_adaptive_health_app.core.ui.HeroHeaderCard
 import com.angelotacoj.self_adaptive_health_app.core.ui.LargeDestructiveButton
 import com.angelotacoj.self_adaptive_health_app.core.ui.LargeSecondaryButton
@@ -83,11 +85,11 @@ fun HomeScreen(
 
     ScreenContainer(
         title = "Inicio",
-        subtitle = "Elija una tarea simulada. El texto y las acciones son grandes para facilitar la lectura."
+        subtitle = "Elija una tarea simulada."
     ) {
         HeroHeaderCard(
-            appName = "Bienvenido a AURA",
-            description = "Complete las tareas de salud simulada con calma. Puede volver o cancelar cuando lo necesite."
+            appName = "AURA",
+            description = "Tareas simuladas de acceso, cita, bienestar, recordatorio y revisión."
         )
 
         SessionInfoCard(
@@ -171,7 +173,7 @@ fun HomeScreen(
 private fun HomeState.statusFor(taskId: TaskId): String {
     return when {
         isCompleted(taskId) -> "Completada"
-        taskId != TaskId.T1_ACCESS && !isCompleted(TaskId.T1_ACCESS) -> "Bloqueada hasta completar T1"
+        !session.isTaskAvailableInCurrentCondition(taskId) -> "Bloqueada hasta completar la tarea anterior"
         else -> "Pendiente"
     }
 }
@@ -179,16 +181,15 @@ private fun HomeState.statusFor(taskId: TaskId): String {
 private fun HomeState.buttonTextFor(taskId: TaskId): String {
     return when {
         isCompleted(taskId) -> "Completada"
-        taskId != TaskId.T1_ACCESS && !isCompleted(TaskId.T1_ACCESS) -> "Complete T1 primero"
+        !session.isTaskAvailableInCurrentCondition(taskId) -> "Complete la tarea anterior"
         else -> "Iniciar tarea"
     }
 }
 
 private fun HomeState.isCompleted(taskId: TaskId): Boolean {
-    val completed = session.completedTasksByCondition[session.currentCondition].orEmpty()
-    return taskId in completed
+    return session.isTaskCompletedInCurrentCondition(taskId)
 }
 
 private fun HomeState.isAvailable(taskId: TaskId): Boolean {
-    return !isCompleted(taskId) && (taskId == TaskId.T1_ACCESS || isCompleted(TaskId.T1_ACCESS))
+    return session.isTaskAvailableInCurrentCondition(taskId)
 }

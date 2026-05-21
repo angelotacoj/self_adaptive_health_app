@@ -49,6 +49,7 @@ fun AccessScreen(
     onRejectAdaptation: () -> Unit,
     onUndoAdaptation: () -> Unit,
     onHideHelp: () -> Unit,
+    onKeepAdaptation: () -> Unit,
     onTaskCompleted: () -> Unit,
     onExit: () -> Unit
 ) {
@@ -63,9 +64,9 @@ fun AccessScreen(
 
     LaunchedEffect(screenId) {
         onLog(InteractionEventType.SCREEN_ENTERED, screenId, "Access step entered: $screenId.")
-        if (AdaptiveTiming.prolongedTimeDetectionEnabled) {
+        if (AdaptiveTiming.prolongedTimeDetectionEnabled && state.step != AccessStep.Intro) {
             delay(AdaptiveTiming.THRESHOLD_SHORT)
-            onAdaptiveEvent(AdaptiveInteractionEventType.PROLONGED_TIME, ScreenId.ACCESS_CODE)
+            onAdaptiveEvent(AdaptiveInteractionEventType.PROLONGED_TIME, screenId)
         }
     }
 
@@ -118,19 +119,21 @@ fun AccessScreen(
             adaptiveUiState = state.adaptiveUiState
         )
         ContextualHelpBox(state.adaptiveUiState, onHideHelp)
-        UndoAdaptationCard(state.adaptiveUiState.undoMessageVisible, onUndoAdaptation, onHideHelp, state.adaptiveUiState)
+        UndoAdaptationCard(state.adaptiveUiState.undoMessageVisible, onUndoAdaptation, onKeepAdaptation, state.adaptiveUiState)
 
         when (state.step) {
             AccessStep.Intro -> {
                 TaskProgressHeader("Paso 1 de 5", "Acceso simulado", adaptiveUiState = state.adaptiveUiState)
-                InstructionCard(
-                    "Instrucciones de la tarea",
-                    listOf(
-                        "Los datos son simulados. No ingrese información personal real.",
-                        "Para esta tarea, use las credenciales ficticias mostradas en pantalla."
-                    ),
-                    adaptiveUiState = state.adaptiveUiState
-                )
+                if (state.adaptiveUiState.isAdaptiveMode) {
+                    InstructionCard(
+                        "Instrucciones de la tarea",
+                        listOf(
+                            "Los datos son simulados. No ingrese información personal real.",
+                            "Para esta tarea, use las credenciales ficticias mostradas en pantalla."
+                        ),
+                        adaptiveUiState = state.adaptiveUiState
+                    )
+                }
                 CredentialCard(state)
                 LargePrimaryButton("Comenzar", { onAction(AccessAction.StartClicked) }, adaptiveUiState = state.adaptiveUiState)
             }
@@ -142,7 +145,7 @@ fun AccessScreen(
                     value = state.userCode,
                     onValueChange = { onAction(AccessAction.UserCodeChanged(it)) },
                     label = { Text("Código de usuario", style = adaptiveLabelStyle(state)) },
-                    supportingText = { Text("Use el código ficticio mostrado en pantalla.", style = adaptiveBodyStyle(state)) },
+                    supportingText = { Text(if (state.adaptiveUiState.contextualHelpVisible) "Use el código ficticio mostrado en pantalla." else "Código asignado", style = adaptiveBodyStyle(state)) },
                     isError = state.errorField == AccessErrorField.UserCode,
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii, imeAction = ImeAction.Next),
@@ -190,7 +193,7 @@ fun AccessScreen(
                     value = state.simulatedPin,
                     onValueChange = { onAction(AccessAction.SimulatedPinChanged(it)) },
                     label = { Text("PIN simulado", style = adaptiveLabelStyle(state)) },
-                    supportingText = { Text("Use el PIN simulado mostrado en pantalla.", style = adaptiveBodyStyle(state)) },
+                    supportingText = { Text(if (state.adaptiveUiState.contextualHelpVisible) "Use el PIN simulado mostrado en pantalla." else "PIN asignado", style = adaptiveBodyStyle(state)) },
                     isError = state.errorField == AccessErrorField.SimulatedPin || state.errorField == AccessErrorField.Both,
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword, imeAction = ImeAction.Done),
@@ -257,11 +260,13 @@ fun AccessScreen(
         }
 
         if (state.step != AccessStep.Completed) {
-            LargeSecondaryButton(
-                "Cancelar tarea",
-                { if (onAction(AccessAction.CancelClicked) is AccessEvent.ExitTask) onExit() },
-                adaptiveUiState = state.adaptiveUiState
-            )
+            if (state.adaptiveUiState.safeExitEnabled || !state.adaptiveUiState.isAdaptiveMode) {
+                LargeSecondaryButton(
+                    "Cancelar tarea",
+                    { if (onAction(AccessAction.CancelClicked) is AccessEvent.ExitTask) onExit() },
+                    adaptiveUiState = state.adaptiveUiState
+                )
+            }
         }
     }
 }
@@ -287,11 +292,11 @@ private fun ErrorText(state: AccessState) {
 
 @Composable
 private fun adaptiveBodyStyle(state: AccessState) =
-    MaterialTheme.typography.bodyLarge.copy(fontSize = (17 * state.adaptiveUiState.textScale).sp)
+    MaterialTheme.typography.bodyLarge.copy(fontSize = ((if (state.adaptiveUiState.isAdaptiveMode) 17 else 14) * state.adaptiveUiState.textScale).sp)
 
 @Composable
 private fun adaptiveLabelStyle(state: AccessState) =
-    MaterialTheme.typography.titleMedium.copy(fontSize = (17 * state.adaptiveUiState.textScale).sp)
+    MaterialTheme.typography.titleMedium.copy(fontSize = ((if (state.adaptiveUiState.isAdaptiveMode) 17 else 14) * state.adaptiveUiState.textScale).sp)
 
 private fun handleFieldEvent(
     event: AccessEvent?,

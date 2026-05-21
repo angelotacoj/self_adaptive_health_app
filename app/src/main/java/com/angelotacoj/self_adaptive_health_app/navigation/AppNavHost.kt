@@ -47,6 +47,7 @@ import com.angelotacoj.self_adaptive_health_app.core.model.completedTaskCount
 import com.angelotacoj.self_adaptive_health_app.core.model.conditionOrder
 import com.angelotacoj.self_adaptive_health_app.core.model.isCurrentConditionComplete
 import com.angelotacoj.self_adaptive_health_app.core.model.isExperimentComplete
+import com.angelotacoj.self_adaptive_health_app.core.model.isTaskAvailableInCurrentCondition
 import com.angelotacoj.self_adaptive_health_app.core.model.totalRequiredTaskRuns
 import com.angelotacoj.self_adaptive_health_app.core.persistence.room.ParticipantSessionEntity
 import com.angelotacoj.self_adaptive_health_app.core.persistence.room.TaskRunEntity
@@ -193,8 +194,8 @@ fun AppNavHost(
         sessionState = started
         existingSetupSession = null
         pendingSetupSession = null
-        adaptiveViewModel.setAdaptiveMode(started.currentCondition == ExperimentCondition.SELF_ADAPTIVE_UI)
         adaptiveViewModel.resetState()
+        adaptiveViewModel.setAdaptiveMode(started.currentCondition == ExperimentCondition.SELF_ADAPTIVE_UI)
         adaptiveViewModel.clearEvents()
         knowledge.clearCurrentTaskAdaptationMemory()
         scope.launch {
@@ -247,6 +248,10 @@ fun AppNavHost(
 
     fun hideHelp() {
         adaptiveViewModel.hideHelp()
+    }
+
+    fun keepLastAdaptation() {
+        adaptiveViewModel.keepLastAdaptation()
     }
 
 
@@ -306,10 +311,11 @@ fun AppNavHost(
             MapeKLog.experiment("task completion validated from Room session=${session.sessionId} condition=${session.currentCondition} task=$taskId completed=$completed")
             val total = dao.getTotalCompletedTaskCount(session.sessionId)
             MapeKLog.experiment("total completed tasks=$total/${session.totalRequiredTaskRuns()}")
-            if (completed || total >= session.totalRequiredTaskRuns()) return@launch
+            if (completed || total >= session.totalRequiredTaskRuns() || !session.isTaskAvailableInCurrentCondition(taskId)) return@launch
             val started = session.startTask(taskId)
             dao.insertTaskRun(session.taskRun(taskId))
             withContext(Dispatchers.Main) {
+                adaptiveViewModel.resetTemporaryStateForTask(session.currentCondition == ExperimentCondition.SELF_ADAPTIVE_UI)
                 adaptiveViewModel.clearEvents(taskId)
                 knowledge.clearTask(taskId)
                 sessionState = started
@@ -319,7 +325,7 @@ fun AppNavHost(
         }
     }
 
-    Self_Adaptive_Health_AppTheme(highContrast = adaptiveUiState.highContrast) {
+    Self_Adaptive_Health_AppTheme(highContrast = activeSession()?.currentCondition == ExperimentCondition.SELF_ADAPTIVE_UI && adaptiveUiState.highContrast) {
         CompositionLocalProvider(
             LocalAdaptiveEvent provides { type, screen, summary -> adaptiveViewModel.processAdaptiveEvent(activeSession(), null, screen, type, summary) }
         ) {
@@ -360,8 +366,8 @@ fun AppNavHost(
                 onContinueExistingSession = {
                     existingSetupSession?.let {
                         sessionState = it
-                        adaptiveViewModel.setAdaptiveMode(it.currentCondition == ExperimentCondition.SELF_ADAPTIVE_UI)
                         adaptiveViewModel.resetState()
+                        adaptiveViewModel.setAdaptiveMode(it.currentCondition == ExperimentCondition.SELF_ADAPTIVE_UI)
                         scope.launch { AppContainer.experimentPreferences.saveSession(it) }
                         existingSetupSession = null
                         pendingSetupSession = null
@@ -485,6 +491,7 @@ fun AppNavHost(
                         onRejectAdaptation = ::rejectPendingAdaptation,
                         onUndoAdaptation = ::undoAdaptation,
                         onHideHelp = ::hideHelp,
+                        onKeepAdaptation = ::keepLastAdaptation,
                         onTaskCompleted = {
                             viewModel.finishTask()
                             completeTask(TaskId.T1_ACCESS, ScreenId.ACCESS_COMPLETED, "T1 access completed.")
@@ -516,6 +523,7 @@ fun AppNavHost(
                         onRejectAdaptation = ::rejectPendingAdaptation,
                         onUndoAdaptation = ::undoAdaptation,
                         onHideHelp = ::hideHelp,
+                        onKeepAdaptation = ::keepLastAdaptation,
                         onTaskCompleted = {
                             completeTask(TaskId.T2_APPOINTMENT, ScreenId.APPOINTMENT_COMPLETED, "T2 appointment completed.")
                         },
@@ -549,6 +557,7 @@ fun AppNavHost(
                         onRejectAdaptation = ::rejectPendingAdaptation,
                         onUndoAdaptation = ::undoAdaptation,
                         onHideHelp = ::hideHelp,
+                        onKeepAdaptation = ::keepLastAdaptation,
                         onExit = { navController.popBackStack(AppRoute.Home.route, inclusive = false) }
                     )
                 }
@@ -580,6 +589,7 @@ fun AppNavHost(
                         onRejectAdaptation = ::rejectPendingAdaptation,
                         onUndoAdaptation = ::undoAdaptation,
                         onHideHelp = ::hideHelp,
+                        onKeepAdaptation = ::keepLastAdaptation,
                         onExit = { navController.popBackStack(AppRoute.Home.route, inclusive = false) }
                     )
                 }
@@ -611,6 +621,7 @@ fun AppNavHost(
                         onRejectAdaptation = ::rejectPendingAdaptation,
                         onUndoAdaptation = ::undoAdaptation,
                         onHideHelp = ::hideHelp,
+                        onKeepAdaptation = ::keepLastAdaptation,
                         onExit = { navController.popBackStack(AppRoute.Home.route, inclusive = false) }
                     )
                 }
@@ -635,8 +646,8 @@ fun AppNavHost(
                             val next = completed.moveToNextCondition()
                             sessionState = next
                             conditionTransitionState = null
-                            adaptiveViewModel.setAdaptiveMode(next.currentCondition == ExperimentCondition.SELF_ADAPTIVE_UI)
                             adaptiveViewModel.resetState()
+                            adaptiveViewModel.setAdaptiveMode(next.currentCondition == ExperimentCondition.SELF_ADAPTIVE_UI)
                             scope.launch { AppContainer.experimentPreferences.saveSession(next) }
                             log(next.logEntry(InteractionEventType.CONDITION_STARTED, screenId = ScreenId.HOME, message = "Stage ${next.currentConditionIndex + 1} started."))
                             MapeKLog.experiment("moving to next condition next=${next.currentCondition}")

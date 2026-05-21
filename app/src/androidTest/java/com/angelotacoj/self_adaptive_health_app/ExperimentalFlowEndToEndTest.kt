@@ -138,6 +138,7 @@ private fun MainComposeRule.completeT2Appointment(selfAdaptive: Boolean) {
 private fun MainComposeRule.completeT3WellBeing(selfAdaptive: Boolean) {
     openTaskByTitle("T3 Registro de bienestar")
     onNodeWithText("Iniciar formulario").performScrollTo().performClick()
+    onNode(wellBeingValueField()).performTextInput("5")
     onNodeWithText("Validar valor").performScrollTo().performClick()
     onNodeWithText("Revisar antes de guardar").performScrollTo().performClick()
     onNodeWithText("Guardar").performScrollTo().performClick()

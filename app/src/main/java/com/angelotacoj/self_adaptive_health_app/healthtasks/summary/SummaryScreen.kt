@@ -30,6 +30,7 @@ fun SummaryScreen(
     onRejectAdaptation: () -> Unit,
     onUndoAdaptation: () -> Unit,
     onHideHelp: () -> Unit,
+    onKeepAdaptation: () -> Unit,
     onExit: () -> Unit
 ) {
     val screenId = state.step.toScreenId()
@@ -39,9 +40,9 @@ fun SummaryScreen(
     }
     LaunchedEffect(screenId) {
         onLog(InteractionEventType.SCREEN_ENTERED, screenId, "Summary step entered: $screenId.")
-        if (AdaptiveTiming.prolongedTimeDetectionEnabled) {
+        if (AdaptiveTiming.prolongedTimeDetectionEnabled && state.step != SummaryStep.Intro) {
             delay(AdaptiveTiming.THRESHOLD_SHORT)
-            onAdaptiveEvent(AdaptiveInteractionEventType.PROLONGED_TIME, ScreenId.SUMMARY_INTRO, null)
+            onAdaptiveEvent(AdaptiveInteractionEventType.PROLONGED_TIME, screenId, null)
         }
     }
     if (state.step == SummaryStep.ReinforcedConfirmation) {
@@ -81,25 +82,28 @@ fun SummaryScreen(
             adaptiveUiState = state.adaptiveUiState
         )
         ContextualHelpBox(state.adaptiveUiState, onHideHelp)
-        UndoAdaptationCard(state.adaptiveUiState.undoMessageVisible, onUndoAdaptation, onHideHelp, state.adaptiveUiState)
+        UndoAdaptationCard(state.adaptiveUiState.undoMessageVisible, onUndoAdaptation, onKeepAdaptation, state.adaptiveUiState)
 
         when (state.step) {
             SummaryStep.Intro -> {
-                TaskProgressHeader("Paso 1 de 4", "Resumen de información")
-                InstructionCard("Instrucciones de la tarea", listOf("Revise el acceso y el recordatorio simulados.", "Guardar requiere una confirmación reforzada."))
+                TaskProgressHeader("Paso 1 de 4", "Resumen de información", adaptiveUiState = state.adaptiveUiState)
+                if (state.adaptiveUiState.isAdaptiveMode) {
+                    InstructionCard("Instrucciones de la tarea", listOf("Revise el acceso y el recordatorio simulados.", "Guardar puede mostrar una confirmación reforzada."), adaptiveUiState = state.adaptiveUiState)
+                }
                 LargePrimaryButton("Revisar detalles", { onAction(SummaryAction.StartReviewClicked) }, adaptiveUiState = state.adaptiveUiState)
                 if (state.adaptiveUiState.isAdaptiveMode) {
                     LargeSecondaryButton("Necesito ayuda", { onAdaptiveEvent(AdaptiveInteractionEventType.HELP_REQUESTED, screenId, null) }, adaptiveUiState = state.adaptiveUiState)
                 }
             }
             SummaryStep.Details -> {
-                TaskProgressHeader("Paso 2 de 4", "Revisar detalles")
+                TaskProgressHeader("Paso 2 de 4", "Revisar detalles", adaptiveUiState = state.adaptiveUiState)
                 SummaryReviewCard(
                     "Datos simulados",
                     listOf(
                         "Acceso" to "Código ${state.dataSet.accessCredentials.userCode}",
                         "Recordatorio" to state.dataSet.reminder.time
-                    )
+                    ),
+                    adaptiveUiState = state.adaptiveUiState
                 )
                 LargePrimaryButton(
                     "Guardar información",
@@ -122,8 +126,18 @@ fun SummaryScreen(
                 }
             }
             SummaryStep.ReinforcedConfirmation -> {
-                TaskProgressHeader("Paso 3 de 4", "Confirmación reforzada")
-                InstructionCard("Antes de guardar", listOf("Está por confirmar información simulada.", "Elija Confirmar, Editar o Cancelar."))
+                TaskProgressHeader("Paso 3 de 4", if (state.adaptiveUiState.reinforcedConfirmationVisible) "Confirmación reforzada" else "Confirmación", adaptiveUiState = state.adaptiveUiState)
+                if (state.adaptiveUiState.reinforcedConfirmationVisible || state.adaptiveUiState.contextualHelpVisible) {
+                    InstructionCard("Antes de guardar", listOf("Está por confirmar información simulada.", "Puede confirmar, editar o cancelar."), adaptiveUiState = state.adaptiveUiState)
+                    SummaryReviewCard(
+                        "Resumen concreto",
+                        listOf(
+                            "Acceso" to "Código ${state.dataSet.accessCredentials.userCode}",
+                            "Recordatorio" to state.dataSet.reminder.time
+                        ),
+                        adaptiveUiState = state.adaptiveUiState
+                    )
+                }
                 ButtonRow(
                     primaryText = "Confirmar",
                     onPrimary = {
@@ -131,19 +145,22 @@ fun SummaryScreen(
                         onLog(InteractionEventType.TASK_COMPLETED, ScreenId.SUMMARY_FINAL, "T5 completed with confirmation.")
                     },
                     secondaryText = "Editar",
-                    onSecondary = { onAction(SummaryAction.EditClicked) }
+                    onSecondary = { onAction(SummaryAction.EditClicked) },
+                    adaptiveUiState = state.adaptiveUiState
                 )
-                LargeSecondaryButton("Cancelar", { onAction(SummaryAction.CancelClicked); onLog(InteractionEventType.TASK_COMPLETED, ScreenId.SUMMARY_FINAL, "T5 completed with cancel.") }, adaptiveUiState = state.adaptiveUiState)
+                if (state.adaptiveUiState.safeExitEnabled || !state.adaptiveUiState.isAdaptiveMode) {
+                    LargeSecondaryButton("Cancelar", { onAction(SummaryAction.CancelClicked); onLog(InteractionEventType.TASK_COMPLETED, ScreenId.SUMMARY_FINAL, "T5 completed with cancel.") }, adaptiveUiState = state.adaptiveUiState)
+                }
             }
             SummaryStep.Final -> {
-                TaskProgressHeader("Paso 4 de 4", "Mensaje final")
+                TaskProgressHeader("Paso 4 de 4", "Mensaje final", adaptiveUiState = state.adaptiveUiState)
                 val resultText = when (state.result) {
                     SummaryResult.Confirmed -> "La información simulada fue confirmada."
                     SummaryResult.Edited -> "Se seleccionó editar."
                     SummaryResult.Cancelled -> "La revisión fue cancelada."
                     null -> "La tarea ha finalizado."
                 }
-                InstructionCard("Tarea finalizada", listOf(resultText, state.editNote).filter { it.isNotBlank() })
+                InstructionCard("Tarea finalizada", listOf(resultText, state.editNote).filter { it.isNotBlank() }, adaptiveUiState = state.adaptiveUiState)
                 LargePrimaryButton("Volver al inicio", onExit, adaptiveUiState = state.adaptiveUiState)
             }
         }

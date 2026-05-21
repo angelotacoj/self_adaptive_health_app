@@ -4,8 +4,8 @@ object AdaptiveTiming {
     @Volatile
     var prolongedTimeDetectionEnabled: Boolean = true
 
-    // Adjusted thresholds for maximum proactive adaptation
-    const val THRESHOLD_SHORT = 15_000L // 15 seconds
-    const val THRESHOLD_MEDIUM = 30_000L // 30 seconds
-    const val THRESHOLD_LONG = 45_000L // 45 seconds
+    // Tuned for short lab sessions: adaptations require user dwell time, but are observable.
+    const val THRESHOLD_SHORT = 12_000L
+    const val THRESHOLD_MEDIUM = 22_000L
+    const val THRESHOLD_LONG = 32_000L
 }

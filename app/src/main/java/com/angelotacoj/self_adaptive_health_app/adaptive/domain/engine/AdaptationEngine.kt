@@ -77,9 +77,9 @@ class InteractionMonitorImpl : InteractionMonitor {
         val screenEvents = taskEvents.filter { it.screenId == taskState.screenId }
         val signals = mutableListOf<ObservedInteractionSignal>()
         
-        if (screenEvents.count { it.eventType == AdaptiveInteractionEventType.TOUCH_ERROR } >= 2 ||
-            taskEvents.count { it.eventType == AdaptiveInteractionEventType.TOUCH_ERROR } >= 4
-        ) signals += ObservedInteractionSignal.OIS01_TOUCH_ERRORS
+        if (screenEvents.count { it.eventType == AdaptiveInteractionEventType.TOUCH_ERROR } == 2) {
+            signals += ObservedInteractionSignal.OIS01_TOUCH_ERRORS
+        }
         
         if (taskEvents.any { it.eventType == AdaptiveInteractionEventType.PROLONGED_TIME }) signals += ObservedInteractionSignal.OIS02_PROLONGED_TIME
         if (taskEvents.any { it.eventType == AdaptiveInteractionEventType.CONFIRMATION_PAUSE }) signals += ObservedInteractionSignal.OIS03_CONFIRMATION_PAUSE
@@ -281,11 +281,11 @@ class ExtendedMapeKCoordinator(
 private fun AdaptationRuleId.toPlan(signals: List<ObservedInteractionSignal>, difficulties: List<InferredDifficulty>, taskId: TaskId?, screenId: ScreenId?, reviewSummary: com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.ReviewSummary? = null): AdaptationPlan {
     val id = "evt_" + UUID.randomUUID().toString()
     return when (this) {
-        AdaptationRuleId.AR01 -> AdaptationPlan(id, this, signals, difficulties, listOf(UiModification.UIM03_TOUCH_TARGETS, UiModification.UIM04_SPACING), ValidationType.SUGGESTED, "Facilitar los toques", "Puedo hacer los botones más grandes y separados para facilitar los toques.", taskId, screenId)
-        AdaptationRuleId.AR02 -> AdaptationPlan(id, this, signals, difficulties, listOf(UiModification.UIM01_TEXT_SIZE, UiModification.UIM06_CONTEXTUAL_HELP, UiModification.UIM09_VISUAL_FEEDBACK), ValidationType.NON_INTRUSIVE, "Siguiente paso sugerido", "Siguiente paso sugerido: revise la información y toque el botón para continuar.", taskId, screenId)
+        AdaptationRuleId.AR01 -> AdaptationPlan(id, this, signals, difficulties, listOf(UiModification.UIM03_TOUCH_TARGETS, UiModification.UIM04_SPACING), ValidationType.SUGGESTED, "Facilitar los toques", "Puedo hacer los botones más grandes y separados para reducir toques accidentales.", taskId, screenId)
+        AdaptationRuleId.AR02 -> AdaptationPlan(id, this, signals, difficulties, listOf(UiModification.UIM01_TEXT_SIZE, UiModification.UIM02_CONTRAST, UiModification.UIM06_CONTEXTUAL_HELP, UiModification.UIM09_VISUAL_FEEDBACK), ValidationType.NON_INTRUSIVE, "Siguiente paso sugerido", "Aumenté el texto y el contraste. Siguiente paso: revise la información principal y toque el botón para continuar.", taskId, screenId)
         AdaptationRuleId.AR03 -> AdaptationPlan(id, this, signals, difficulties, listOf(UiModification.UIM08_REINFORCED_CONFIRMATION, UiModification.UIM10_SAFE_EXIT, UiModification.UIM06_CONTEXTUAL_HELP), ValidationType.EXPLICIT, "Revisar antes de guardar", "Antes de guardar, revise el resumen.", taskId, screenId, reviewSummary)
-        AdaptationRuleId.AR04 -> AdaptationPlan(id, this, signals, difficulties, listOf(UiModification.UIM07_GUIDED_NAVIGATION, UiModification.UIM09_VISUAL_FEEDBACK), ValidationType.SUGGESTED, "Activar guía paso a paso", "¿Desea activar la guía?", taskId, screenId)
-        AdaptationRuleId.AR05 -> AdaptationPlan(id, this, signals, difficulties, listOf(UiModification.UIM06_CONTEXTUAL_HELP), ValidationType.DIRECT, "Ayuda disponible", "Esta pantalla usa datos ficticios.", taskId, screenId)
+        AdaptationRuleId.AR04 -> AdaptationPlan(id, this, signals, difficulties, listOf(UiModification.UIM05_ICONS_LABELS, UiModification.UIM07_GUIDED_NAVIGATION, UiModification.UIM09_VISUAL_FEEDBACK), ValidationType.SUGGESTED, "Activar guía paso a paso", "Puedo mostrar etiquetas y una guía para completar esta tarea paso a paso.", taskId, screenId)
+        AdaptationRuleId.AR05 -> AdaptationPlan(id, this, signals, difficulties, listOf(UiModification.UIM05_ICONS_LABELS, UiModification.UIM06_CONTEXTUAL_HELP), ValidationType.DIRECT, "Ayuda disponible", "Esta pantalla usa datos ficticios. Revise el dato solicitado, complete el control principal y use Volver o Cancelar si necesita corregir.", taskId, screenId)
         AdaptationRuleId.AR06 -> AdaptationPlan(id, this, signals, difficulties, listOf(UiModification.UIM09_VISUAL_FEEDBACK, UiModification.UIM10_SAFE_EXIT), ValidationType.DIRECT, "Revise el campo", "Ingrese un número entre 1 y 10.", taskId, screenId)
         AdaptationRuleId.AR07 -> AdaptationPlan(id, this, signals, difficulties, emptyList(), ValidationType.NOT_APPLICABLE, "Preferencia guardada", "Entendido.", taskId, screenId)
         AdaptationRuleId.AR08 -> AdaptationPlan(id, this, signals, difficulties, listOf(UiModification.UIM08_REINFORCED_CONFIRMATION, UiModification.UIM10_SAFE_EXIT), ValidationType.EXPLICIT, "Revisar antes de continuar", "Está por guardar información simulada.", taskId, screenId, reviewSummary)

@@ -122,6 +122,19 @@ fun ExperimentSessionState.isCurrentConditionComplete(): Boolean {
     return completedTasksByCondition[currentCondition].orEmpty().containsAll(ExperimentTaskOrder)
 }
 
+fun ExperimentSessionState.isTaskCompletedInCurrentCondition(taskId: TaskId): Boolean {
+    return taskId in completedTasksByCondition[currentCondition].orEmpty()
+}
+
+fun ExperimentSessionState.isTaskAvailableInCurrentCondition(taskId: TaskId): Boolean {
+    if (isTaskCompletedInCurrentCondition(taskId)) return false
+    val index = ExperimentTaskOrder.indexOf(taskId)
+    if (index < 0) return false
+    if (index == 0) return true
+    val completed = completedTasksByCondition[currentCondition].orEmpty()
+    return ExperimentTaskOrder.take(index).all { it in completed }
+}
+
 fun ExperimentSessionState.isExperimentComplete(): Boolean {
     return conditionOrder.all { condition ->
         completedTasksByCondition[condition].orEmpty().containsAll(ExperimentTaskOrder)

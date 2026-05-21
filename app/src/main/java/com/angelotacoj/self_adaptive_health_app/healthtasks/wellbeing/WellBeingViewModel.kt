@@ -47,7 +47,7 @@ class WellBeingViewModel : ViewModel() {
 
     fun start(record: WellBeingRecord) {
         if (_state.value?.label != record.label) {
-            _state.value = WellBeingState(label = record.label, suggestedValue = record.value, valueText = record.value.toString())
+            _state.value = WellBeingState(label = record.label, suggestedValue = record.value)
         }
     }
 

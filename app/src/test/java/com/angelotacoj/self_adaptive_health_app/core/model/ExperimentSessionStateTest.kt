@@ -5,6 +5,7 @@ import com.angelotacoj.self_adaptive_health_app.core.data.FakeHealthDataSource
 import com.angelotacoj.self_adaptive_health_app.core.logging.TaskId
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ExperimentSessionStateTest {
@@ -62,6 +63,27 @@ class ExperimentSessionStateTest {
         assertEquals(ExperimentTasksPerCondition, state.completedTasksByCondition.getValue(ExperimentCondition.STATIC_UI).size)
         assertEquals(emptySet<TaskId>(), state.completedTasksByCondition[ExperimentCondition.SELF_ADAPTIVE_UI].orEmpty())
         assertEquals(ExperimentCondition.SELF_ADAPTIVE_UI, state.currentCondition)
+    }
+
+    @Test
+    fun task4IsAvailableInSelfAdaptiveAfterCompletingFirstThreeSelfAdaptiveTasks() {
+        val dataSet = FakeHealthDataSource().getDataSet(ExperimentGroup.GroupA)
+        var state = ExperimentSessionState(
+            participantCode = "UNIT_T4_AVAILABLE",
+            group = ExperimentGroup.GroupA,
+            conditionOrder = ExperimentGroup.GroupA.conditionOrder(),
+            currentDataSet = dataSet
+        )
+
+        ExperimentTaskOrder.forEach { taskId ->
+            state = state.startTask(taskId).finishCurrentTask()
+        }
+        state = state.moveToNextCondition()
+        listOf(TaskId.T1_ACCESS, TaskId.T2_APPOINTMENT, TaskId.T3_WELL_BEING).forEach { taskId ->
+            state = state.startTask(taskId).finishCurrentTask()
+        }
+
+        assertTrue(state.isTaskAvailableInCurrentCondition(TaskId.T4_REMINDER))
     }
 
     private fun completeTenTasks(group: ExperimentGroup): ExperimentSessionState {

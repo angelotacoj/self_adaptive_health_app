@@ -30,6 +30,7 @@ fun ReminderScreen(
     onRejectAdaptation: () -> Unit,
     onUndoAdaptation: () -> Unit,
     onHideHelp: () -> Unit,
+    onKeepAdaptation: () -> Unit,
     onExit: () -> Unit
 ) {
     val screenId = state.step.toScreenId()
@@ -39,9 +40,9 @@ fun ReminderScreen(
     }
     LaunchedEffect(screenId) {
         onLog(InteractionEventType.SCREEN_ENTERED, screenId, "Reminder step entered: $screenId.")
-        if (AdaptiveTiming.prolongedTimeDetectionEnabled) {
+        if (AdaptiveTiming.prolongedTimeDetectionEnabled && state.step != ReminderStep.Intro) {
             delay(AdaptiveTiming.THRESHOLD_LONG)
-            onAdaptiveEvent(AdaptiveInteractionEventType.PROLONGED_TIME, ScreenId.REMINDER_INTRO)
+            onAdaptiveEvent(AdaptiveInteractionEventType.PROLONGED_TIME, screenId)
         }
     }
 
@@ -70,12 +71,20 @@ fun ReminderScreen(
             adaptiveUiState = state.adaptiveUiState
         )
         ContextualHelpBox(state.adaptiveUiState, onHideHelp)
-        UndoAdaptationCard(state.adaptiveUiState.undoMessageVisible, onUndoAdaptation, onHideHelp, state.adaptiveUiState)
+        UndoAdaptationCard(state.adaptiveUiState.undoMessageVisible, onUndoAdaptation, onKeepAdaptation, state.adaptiveUiState)
 
         when (state.step) {
             ReminderStep.Intro -> {
-                TaskProgressHeader("Paso 1 de 6", "Introducción al recordatorio")
-                InstructionCard("Instrucciones de la tarea", listOf("Elija la actividad, hora y frecuencia asignadas.", "Revise el resumen antes de guardar."))
+                TaskProgressHeader("Paso 1 de 6", "Introducción al recordatorio", adaptiveUiState = state.adaptiveUiState)
+                InstructionCard(
+                    if (state.adaptiveUiState.isAdaptiveMode) "Instrucciones de la tarea" else "Recordatorio asignado",
+                    if (state.adaptiveUiState.isAdaptiveMode) {
+                        listOf("Elija la actividad, hora y frecuencia asignadas.", "Revise el resumen antes de guardar.")
+                    } else {
+                        listOf("${state.activity}, ${state.time}, ${state.frequency}")
+                    },
+                    adaptiveUiState = state.adaptiveUiState
+                )
                 LargePrimaryButton("Crear recordatorio", { onAction(ReminderAction.StartNewReminderClicked) }, adaptiveUiState = state.adaptiveUiState)
                 if (state.adaptiveUiState.isAdaptiveMode) {
                     LargeSecondaryButton("Necesito ayuda", { onAdaptiveEvent(AdaptiveInteractionEventType.HELP_REQUESTED, screenId) }, adaptiveUiState = state.adaptiveUiState)
@@ -91,8 +100,8 @@ fun ReminderScreen(
                 onAction(ReminderAction.FrequencySelected)
             }
             ReminderStep.ReviewSummary -> {
-                TaskProgressHeader("Paso 5 de 6", "Revisar recordatorio")
-                SummaryReviewCard("Resumen del recordatorio", listOf("Actividad" to state.activity, "Hora" to state.time, "Frecuencia" to state.frequency))
+                TaskProgressHeader("Paso 5 de 6", "Revisar recordatorio", adaptiveUiState = state.adaptiveUiState)
+                SummaryReviewCard("Resumen del recordatorio", listOf("Actividad" to state.activity, "Hora" to state.time, "Frecuencia" to state.frequency), adaptiveUiState = state.adaptiveUiState)
                 ButtonRow(
                     primaryText = "Guardar recordatorio",
                     onPrimary = {
@@ -104,13 +113,16 @@ fun ReminderScreen(
                         }
                     },
                     secondaryText = "Volver",
-                    onSecondary = { onAdaptiveEvent(AdaptiveInteractionEventType.BACK_PRESSED, screenId); onAction(ReminderAction.BackClicked) }
+                    onSecondary = { onAdaptiveEvent(AdaptiveInteractionEventType.BACK_PRESSED, screenId); onAction(ReminderAction.BackClicked) },
+                    adaptiveUiState = state.adaptiveUiState
                 )
-                LargeSecondaryButton("Cancelar", { if (onAction(ReminderAction.CancelClicked) is ReminderEvent.ExitTask) onExit() }, adaptiveUiState = state.adaptiveUiState)
+                if (state.adaptiveUiState.safeExitEnabled || !state.adaptiveUiState.isAdaptiveMode) {
+                    LargeSecondaryButton("Cancelar", { if (onAction(ReminderAction.CancelClicked) is ReminderEvent.ExitTask) onExit() }, adaptiveUiState = state.adaptiveUiState)
+                }
             }
             ReminderStep.Saved -> {
-                TaskProgressHeader("Paso 6 de 6", "Mensaje de éxito")
-                InstructionCard("Recordatorio guardado", listOf("${state.activity} a las ${state.time}", state.frequency))
+                TaskProgressHeader("Paso 6 de 6", "Mensaje de éxito", adaptiveUiState = state.adaptiveUiState)
+                InstructionCard("Recordatorio guardado", listOf("${state.activity} a las ${state.time}", state.frequency), adaptiveUiState = state.adaptiveUiState)
                 LargePrimaryButton("Volver al inicio", onExit, adaptiveUiState = state.adaptiveUiState)
             }
         }
@@ -126,8 +138,8 @@ private fun StepChoice(
     state: ReminderState,
     onContinue: () -> Unit
 ) {
-    TaskProgressHeader(step, title)
-    SummaryReviewCard(title, listOf(row))
+    TaskProgressHeader(step, title, adaptiveUiState = state.adaptiveUiState)
+    SummaryReviewCard(title, listOf(row), adaptiveUiState = state.adaptiveUiState)
     LargePrimaryButton(buttonText, onContinue, adaptiveUiState = state.adaptiveUiState)
 }
 

@@ -35,10 +35,11 @@ class SelfAdaptiveTasksInstrumentedTest {
     fun t3_fieldErrorInSelfAdaptiveUi_showsAr06RecoveryMessage() {
         composeRule.startGroupBSession("UI_T3_AR06_001")
         composeRule.completeT1AccessToUnlockTasks()
+        composeRule.completeT2AppointmentForSequentialAccess()
         composeRule.openTaskByTitle("T3 Registro de bienestar")
         composeRule.onNodeWithText("Iniciar formulario").performScrollTo().performClick()
 
-        composeRule.onNode(editableTextField("Nivel de energía")).performTextClearance()
+        composeRule.onNode(wellBeingValueField()).performTextClearance()
         composeRule.onNodeWithText("Validar valor").performScrollTo().performClick()
 
         composeRule.onNodeWithText("Ingrese un valor ficticio del 1 al 10.").performScrollTo().assertIsDisplayed()
@@ -49,8 +50,10 @@ class SelfAdaptiveTasksInstrumentedTest {
     fun t3_sensitiveSaveInSelfAdaptiveUi_showsExplicitValidation() {
         composeRule.startGroupBSession("UI_T3_AR08_001")
         composeRule.completeT1AccessToUnlockTasks()
+        composeRule.completeT2AppointmentForSequentialAccess()
         composeRule.openTaskByTitle("T3 Registro de bienestar")
         composeRule.onNodeWithText("Iniciar formulario").performScrollTo().performClick()
+        composeRule.onNode(wellBeingValueField()).performTextInput("5")
         composeRule.onNodeWithText("Validar valor").performScrollTo().performClick()
         composeRule.onNodeWithText("Revisar antes de guardar").performScrollTo().performClick()
         composeRule.onNodeWithText("Guardar").performScrollTo().performClick()
@@ -63,6 +66,8 @@ class SelfAdaptiveTasksInstrumentedTest {
     fun t4_backtrackingInSelfAdaptiveUi_showsAr04Suggestion() {
         composeRule.startGroupBSession("UI_T4_AR04_001")
         composeRule.completeT1AccessToUnlockTasks()
+        composeRule.completeT2AppointmentForSequentialAccess()
+        composeRule.completeT3WellBeingForSequentialAccess()
         composeRule.openTaskByTitle("T4 Recordatorio")
         composeRule.onNodeWithText("Crear recordatorio").performScrollTo().performClick()
         composeRule.onNodeWithText("Usar esta actividad").performScrollTo().performClick()
@@ -84,6 +89,8 @@ class SelfAdaptiveTasksInstrumentedTest {
     fun t4_sensitiveSaveInSelfAdaptiveUi_showsExplicitValidation() {
         composeRule.startGroupBSession("UI_T4_AR08_001")
         composeRule.completeT1AccessToUnlockTasks()
+        composeRule.completeT2AppointmentForSequentialAccess()
+        composeRule.completeT3WellBeingForSequentialAccess()
         composeRule.openTaskByTitle("T4 Recordatorio")
         composeRule.onNodeWithText("Crear recordatorio").performScrollTo().performClick()
         composeRule.onNodeWithText("Usar esta actividad").performScrollTo().performClick()
@@ -99,6 +106,9 @@ class SelfAdaptiveTasksInstrumentedTest {
     fun t5_sensitiveSaveInSelfAdaptiveUi_showsExplicitValidation() {
         composeRule.startGroupBSession("UI_T5_AR08_001")
         composeRule.completeT1AccessToUnlockTasks()
+        composeRule.completeT2AppointmentForSequentialAccess()
+        composeRule.completeT3WellBeingForSequentialAccess()
+        composeRule.completeT4ReminderForSequentialAccess()
         composeRule.openTaskByTitle("T5 Revisar y confirmar")
         composeRule.onNodeWithText("Revisar detalles").performScrollTo().performClick()
         composeRule.onNodeWithText("Guardar información").performScrollTo().performClick()
@@ -114,6 +124,9 @@ class SelfAdaptiveTasksInstrumentedTest {
     fun t5_confirmationPauseInSelfAdaptiveUi_showsAr03ExplicitValidation() {
         composeRule.startGroupBSession("UI_T5_AR03_001")
         composeRule.completeT1AccessToUnlockTasks()
+        composeRule.completeT2AppointmentForSequentialAccess()
+        composeRule.completeT3WellBeingForSequentialAccess()
+        composeRule.completeT4ReminderForSequentialAccess()
         composeRule.openTaskByTitle("T5 Revisar y confirmar")
         composeRule.onNodeWithText("Revisar detalles").performScrollTo().performClick()
         composeRule.onNodeWithText("Guardar información").performScrollTo().performClick()

@@ -30,15 +30,17 @@ class ExtendedMapeKCoordinatorTest {
         assertEquals(
             listOf(
                 UiModification.UIM01_TEXT_SIZE,
+                UiModification.UIM02_CONTRAST,
                 UiModification.UIM06_CONTEXTUAL_HELP,
                 UiModification.UIM09_VISUAL_FEEDBACK
             ),
             applied.plan.modifications
         )
         assertEquals(1.25f, applied.state.textScale)
+        assertTrue(applied.state.highContrast)
         assertTrue(applied.state.contextualHelpVisible)
         assertEquals(
-            "Siguiente paso sugerido: revise la información y toque el botón para continuar.",
+            "Aumenté el texto y el contraste. Siguiente paso: revise la información principal y toque el botón para continuar.",
             applied.state.contextualHelpMessage
         )
         assertNotNull(applied.state.lastAppliedAdaptation)
@@ -69,8 +71,9 @@ class ExtendedMapeKCoordinatorTest {
         val applied = result as AdaptationEngineResult.Applied
         assertEquals(AdaptationRuleId.AR05, applied.plan.ruleId)
         assertEquals(ValidationType.DIRECT, applied.plan.validationType)
-        assertEquals(listOf(UiModification.UIM06_CONTEXTUAL_HELP), applied.plan.modifications)
+        assertEquals(listOf(UiModification.UIM05_ICONS_LABELS, UiModification.UIM06_CONTEXTUAL_HELP), applied.plan.modifications)
         assertTrue(applied.state.contextualHelpVisible)
+        assertTrue(applied.state.showIconLabels)
         assertFalse(applied.state.undoMessageVisible)
         assertEquals(null, applied.state.lastAppliedAdaptation)
     }
@@ -154,6 +157,17 @@ class ExtendedMapeKCoordinatorTest {
         val pending = result as AdaptationEngineResult.RequiresUserValidation
         assertEquals(AdaptationRuleId.AR01, pending.plan.ruleId)
         assertEquals(ValidationType.SUGGESTED, pending.plan.validationType)
+    }
+
+    @Test
+    fun ar01_touchErrorsDoesNotRetriggerAfterSecondEventOnSameScreen() {
+        val engine = ExtendedMapeKCoordinator(InMemoryKnowledgeRepository())
+
+        engine.processAccessEvent(AdaptiveInteractionEventType.TOUCH_ERROR)
+        engine.processAccessEvent(AdaptiveInteractionEventType.TOUCH_ERROR)
+        val result = engine.processAccessEvent(AdaptiveInteractionEventType.TOUCH_ERROR)
+
+        assertEquals(AdaptationEngineResult.NoAdaptation, result)
     }
 
     @Test

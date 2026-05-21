@@ -33,6 +33,7 @@ fun WellBeingScreen(
     onRejectAdaptation: () -> Unit,
     onUndoAdaptation: () -> Unit,
     onHideHelp: () -> Unit,
+    onKeepAdaptation: () -> Unit,
     onExit: () -> Unit
 ) {
     val screenId = state.step.toScreenId()
@@ -42,9 +43,9 @@ fun WellBeingScreen(
     }
     LaunchedEffect(screenId) {
         onLog(InteractionEventType.SCREEN_ENTERED, screenId, "Well-being step entered: $screenId.")
-        if (AdaptiveTiming.prolongedTimeDetectionEnabled) {
+        if (AdaptiveTiming.prolongedTimeDetectionEnabled && state.step != WellBeingStep.Intro) {
             delay(AdaptiveTiming.THRESHOLD_MEDIUM)
-            onAdaptiveEvent(AdaptiveInteractionEventType.PROLONGED_TIME, ScreenId.WELL_BEING_INTRO)
+            onAdaptiveEvent(AdaptiveInteractionEventType.PROLONGED_TIME, screenId)
         }
     }
 
@@ -73,18 +74,23 @@ fun WellBeingScreen(
             adaptiveUiState = state.adaptiveUiState
         )
         ContextualHelpBox(state.adaptiveUiState, onHideHelp)
-        UndoAdaptationCard(state.adaptiveUiState.undoMessageVisible, onUndoAdaptation, onHideHelp, state.adaptiveUiState)
+        UndoAdaptationCard(state.adaptiveUiState.undoMessageVisible, onUndoAdaptation, onKeepAdaptation, state.adaptiveUiState)
 
         when (state.step) {
             WellBeingStep.Intro -> {
-                TaskProgressHeader("Paso 1 de 5", "Introducción")
+                TaskProgressHeader("Paso 1 de 5", "Introducción", adaptiveUiState = state.adaptiveUiState)
                 InstructionCard(
-                    "Instrucciones de la tarea",
-                    listOf(
-                        "Use el valor ficticio asignado.",
-                        "${state.label}: ${state.suggestedValue}",
-                        "Rango aceptado: 1 a 10."
-                    )
+                    if (state.adaptiveUiState.isAdaptiveMode) "Instrucciones de la tarea" else "Dato asignado",
+                    if (state.adaptiveUiState.isAdaptiveMode) {
+                        listOf(
+                            "Use el valor ficticio asignado.",
+                            "${state.label}: ${state.suggestedValue}",
+                            "Rango aceptado: 1 a 10."
+                        )
+                    } else {
+                        listOf("${state.label}: ${state.suggestedValue}")
+                    },
+                    adaptiveUiState = state.adaptiveUiState
                 )
                 LargePrimaryButton("Iniciar formulario", { onAction(WellBeingAction.StartFormClicked) }, adaptiveUiState = state.adaptiveUiState)
                 if (state.adaptiveUiState.isAdaptiveMode) {
@@ -92,18 +98,18 @@ fun WellBeingScreen(
                 }
             }
             WellBeingStep.Form -> {
-                TaskProgressHeader("Paso 2 de 5", "Formulario de datos ficticios")
+                TaskProgressHeader("Paso 2 de 5", "Formulario de datos ficticios", adaptiveUiState = state.adaptiveUiState)
                 OutlinedTextField(
                     value = state.valueText,
                     onValueChange = { onAction(WellBeingAction.ValueChanged(it)) },
                     label = { Text(state.label) },
-                    supportingText = { Text("Ingrese un número del 1 al 10. Ejemplo: ${state.suggestedValue}") },
-                    textStyle = MaterialTheme.typography.headlineSmall,
+                    supportingText = { Text(if (state.adaptiveUiState.contextualHelpVisible) "Ingrese un número del 1 al 10. Ejemplo: ${state.suggestedValue}" else "Número del 1 al 10") },
+                    textStyle = if (state.adaptiveUiState.isAdaptiveMode) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.bodyLarge,
                     isError = state.errorMessage != null
                 )
                 if (state.errorMessage != null) {
                     Text(state.errorMessage, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyLarge)
-                    if (state.fieldErrorCount >= 2) Text("Ejemplo: ingrese ${state.suggestedValue}.", style = MaterialTheme.typography.bodyLarge)
+                    if (state.adaptiveUiState.contextualHelpVisible || state.fieldErrorCount >= 2) Text("Ejemplo: ingrese ${state.suggestedValue}.", style = MaterialTheme.typography.bodyLarge)
                 }
                 ButtonRow(
                     primaryText = "Validar valor",
@@ -115,18 +121,26 @@ fun WellBeingScreen(
                         }
                         onAction(WellBeingAction.ValidateClicked)
                     },
-                    secondaryText = "Cancelar",
-                    onSecondary = { if (onAction(WellBeingAction.CancelClicked) is WellBeingEvent.ExitTask) onExit() }
+                    secondaryText = if (state.adaptiveUiState.safeExitEnabled) "Cancelar" else "Atrás",
+                    onSecondary = {
+                        val event = if (state.adaptiveUiState.safeExitEnabled) {
+                            onAction(WellBeingAction.CancelClicked)
+                        } else {
+                            onAction(WellBeingAction.BackClicked)
+                        }
+                        if (event is WellBeingEvent.ExitTask) onExit()
+                    },
+                    adaptiveUiState = state.adaptiveUiState
                 )
             }
             WellBeingStep.Validation -> {
-                TaskProgressHeader("Paso 3 de 5", "Validación")
-                InstructionCard("Valor aceptado", listOf("El valor ficticio está dentro del rango aceptado.", "Continúe para revisar antes de guardar."))
+                TaskProgressHeader("Paso 3 de 5", "Validación", adaptiveUiState = state.adaptiveUiState)
+                InstructionCard("Valor aceptado", listOf("El valor ficticio está dentro del rango aceptado.", "Continúe para revisar antes de guardar."), adaptiveUiState = state.adaptiveUiState)
                 LargePrimaryButton("Revisar antes de guardar", { onAction(WellBeingAction.ContinueToReviewClicked) }, adaptiveUiState = state.adaptiveUiState)
             }
             WellBeingStep.Review -> {
-                TaskProgressHeader("Paso 4 de 5", "Revisión antes de guardar")
-                SummaryReviewCard("Esta información es simulada", listOf(state.label to state.valueText))
+                TaskProgressHeader("Paso 4 de 5", "Revisión antes de guardar", adaptiveUiState = state.adaptiveUiState)
+                SummaryReviewCard("Esta información es simulada", listOf(state.label to state.valueText), adaptiveUiState = state.adaptiveUiState)
                 ButtonRow(
                     primaryText = "Guardar",
                     onPrimary = {
@@ -138,13 +152,16 @@ fun WellBeingScreen(
                         }
                     },
                     secondaryText = "Editar",
-                    onSecondary = { onAction(WellBeingAction.EditClicked) }
+                    onSecondary = { onAction(WellBeingAction.EditClicked) },
+                    adaptiveUiState = state.adaptiveUiState
                 )
-                LargeSecondaryButton("Cancelar", { if (onAction(WellBeingAction.CancelClicked) is WellBeingEvent.ExitTask) onExit() }, adaptiveUiState = state.adaptiveUiState)
+                if (state.adaptiveUiState.safeExitEnabled || !state.adaptiveUiState.isAdaptiveMode) {
+                    LargeSecondaryButton("Cancelar", { if (onAction(WellBeingAction.CancelClicked) is WellBeingEvent.ExitTask) onExit() }, adaptiveUiState = state.adaptiveUiState)
+                }
             }
             WellBeingStep.Success -> {
-                TaskProgressHeader("Paso 5 de 5", "Mensaje de éxito")
-                InstructionCard("Registro ficticio guardado", listOf("Este valor simulado no fue almacenado como dato clínico."))
+                TaskProgressHeader("Paso 5 de 5", "Mensaje de éxito", adaptiveUiState = state.adaptiveUiState)
+                InstructionCard("Registro ficticio guardado", listOf("Este valor simulado no fue almacenado como dato clínico."), adaptiveUiState = state.adaptiveUiState)
                 LargePrimaryButton("Volver al inicio", onExit, adaptiveUiState = state.adaptiveUiState)
             }
         }

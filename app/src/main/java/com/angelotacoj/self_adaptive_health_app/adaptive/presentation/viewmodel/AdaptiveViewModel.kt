@@ -9,6 +9,7 @@ import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.AdaptiveIn
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.AdaptiveInteractionEventType
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.ExperimentCondition
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.TaskInteractionState
+import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.UiModification
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.repository.KnowledgeRepository
 import com.angelotacoj.self_adaptive_health_app.adaptive.presentation.state.AdaptiveUiState
 import com.angelotacoj.self_adaptive_health_app.core.logging.InteractionEventType
@@ -35,6 +36,7 @@ class AdaptiveViewModel(
 
     private var pendingPlan: AdaptationPlan? = null
     private var lastAppliedPlan: AdaptationPlan? = null
+    private val persistentPreferences = mutableSetOf<UiModification>()
     
     // Map to keep track of real interaction state per task/screen
     private val taskInteractionStates = mutableMapOf<Pair<TaskId?, ScreenId?>, TaskInteractionState>()
@@ -47,7 +49,14 @@ class AdaptiveViewModel(
         _uiState.value = AdaptiveUiState()
         pendingPlan = null
         lastAppliedPlan = null
+        persistentPreferences.clear()
         taskInteractionStates.clear()
+    }
+
+    fun resetTemporaryStateForTask(isAdaptive: Boolean) {
+        pendingPlan = null
+        lastAppliedPlan = null
+        _uiState.value = baselineState(isAdaptive)
     }
 
     fun clearSnackbar() {
@@ -56,6 +65,24 @@ class AdaptiveViewModel(
 
     fun clearEvents(taskId: TaskId? = null) {
         coordinator.clearEvents(taskId)
+    }
+
+    private fun baselineState(isAdaptive: Boolean): AdaptiveUiState {
+        if (!isAdaptive) return AdaptiveUiState()
+        return persistentPreferences.fold(AdaptiveUiState(isAdaptiveMode = true)) { state, modification ->
+            when (modification) {
+                UiModification.UIM01_TEXT_SIZE -> state.copy(textScale = 1.25f)
+                UiModification.UIM02_CONTRAST -> state.copy(highContrast = true)
+                UiModification.UIM03_TOUCH_TARGETS -> state.copy(enlargedTouchTargets = true)
+                UiModification.UIM04_SPACING -> state.copy(increasedSpacing = true)
+                UiModification.UIM05_ICONS_LABELS -> state.copy(showIconLabels = true)
+                UiModification.UIM10_SAFE_EXIT -> state.copy(safeExitEnabled = true)
+                UiModification.UIM06_CONTEXTUAL_HELP,
+                UiModification.UIM07_GUIDED_NAVIGATION,
+                UiModification.UIM08_REINFORCED_CONFIRMATION,
+                UiModification.UIM09_VISUAL_FEEDBACK -> state
+            }
+        }
     }
 
     private fun getOrCreateTaskState(taskId: TaskId?, screenId: ScreenId?): TaskInteractionState {
@@ -191,6 +218,7 @@ class AdaptiveViewModel(
         if (session == null) return
         val plan = pendingPlan ?: return
         _uiState.value = coordinator.apply(plan, _uiState.value).copy(isAdaptiveMode = true)
+        rememberPersistentPreferences(plan)
         lastAppliedPlan = plan
         
         val logEntry = session.logEntry(InteractionEventType.ADAPTATION_APPLIED, plan.taskId, plan.screenId, "Applied ${plan.ruleId}.")
@@ -239,8 +267,25 @@ class AdaptiveViewModel(
         lastAppliedPlan = null
     }
 
+    fun keepLastAdaptation() {
+        lastAppliedPlan?.let(::rememberPersistentPreferences)
+        _uiState.update { it.copy(contextualHelpVisible = false, undoMessageVisible = false, pendingAdaptation = null) }
+    }
+
+    fun rememberAcceptedPersistentPreference(modification: UiModification) {
+        if (modification == UiModification.UIM01_TEXT_SIZE) {
+            persistentPreferences.add(modification)
+            _uiState.value = baselineState(_uiState.value.isAdaptiveMode)
+        }
+    }
+
     fun hideHelp() {
         _uiState.update { it.copy(contextualHelpVisible = false, undoMessageVisible = false, pendingAdaptation = null) }
+    }
+
+    private fun rememberPersistentPreferences(plan: AdaptationPlan) {
+        val persistent = plan.modifications.filter { it == UiModification.UIM01_TEXT_SIZE }
+        persistentPreferences.addAll(persistent)
     }
 }
 

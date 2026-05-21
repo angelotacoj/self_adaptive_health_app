@@ -15,10 +15,15 @@ import androidx.compose.material3.SnackbarData
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.SettingsSuggest
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.Composable
@@ -30,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.PendingAdaptation
@@ -58,12 +64,15 @@ fun ContextualHelpBox(
                 modifier = Modifier.padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text(
-                    "Ayuda del sistema",
-                    style = MaterialTheme.typography.titleLarge.scaled(state),
-                    fontWeight = FontWeight.Bold,
-                    color = if (state.highContrast) MaterialTheme.colorScheme.primary else Color(0xFF275E83)
-                )
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.Info, contentDescription = "Adaptación de interfaz", tint = if (state.highContrast) MaterialTheme.colorScheme.primary else Color(0xFF275E83))
+                    Text(
+                        "Ayuda del sistema",
+                        style = MaterialTheme.typography.titleLarge.scaled(state),
+                        fontWeight = FontWeight.Bold,
+                        color = if (state.highContrast) MaterialTheme.colorScheme.primary else Color(0xFF275E83)
+                    )
+                }
                 Text(state.contextualHelpMessage ?: "", style = MaterialTheme.typography.bodyLarge.scaled(state))
                 LargeSecondaryButton(text = "Entendido, ocultar", onClick = onHide, adaptiveUiState = state)
             }
@@ -94,7 +103,10 @@ fun AdaptiveSuggestionCard(
                     modifier = Modifier.padding(22.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    Text("Sugerencia de adaptación", style = MaterialTheme.typography.titleSmall.scaled(adaptiveUiState), color = MaterialTheme.colorScheme.onPrimaryContainer, fontWeight = FontWeight.SemiBold)
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.SettingsSuggest, contentDescription = "Sugerencia de adaptación", tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                        Text("Sugerencia de adaptación", style = MaterialTheme.typography.titleSmall.scaled(adaptiveUiState), color = MaterialTheme.colorScheme.onPrimaryContainer, fontWeight = FontWeight.SemiBold)
+                    }
                     Text(it.title, style = MaterialTheme.typography.titleLarge.scaled(adaptiveUiState), fontWeight = FontWeight.Bold)
                     Text(it.message, style = MaterialTheme.typography.bodyLarge.scaled(adaptiveUiState))
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -175,13 +187,19 @@ fun UndoAdaptationCard(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(
-                        "Cambio aplicado automáticamente",
+                    Row(
                         modifier = Modifier.weight(1f),
-                        style = MaterialTheme.typography.titleMedium.scaled(adaptiveUiState),
-                        fontWeight = FontWeight.Bold,
-                        color = if (adaptiveUiState.highContrast) MaterialTheme.colorScheme.primary else Color(0xFF8B5E34)
-                    )
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Filled.Tune, contentDescription = "Cambio de interfaz aplicado", tint = if (adaptiveUiState.highContrast) MaterialTheme.colorScheme.primary else Color(0xFF8B5E34))
+                        Text(
+                            "Cambio aplicado automáticamente",
+                            style = MaterialTheme.typography.titleMedium.scaled(adaptiveUiState),
+                            fontWeight = FontWeight.Bold,
+                            color = if (adaptiveUiState.highContrast) MaterialTheme.colorScheme.primary else Color(0xFF8B5E34)
+                        )
+                    }
                     IconButton(onClick = { showDetails = true }) {
                         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                             if (adaptiveUiState.showIconLabels) {
@@ -196,6 +214,11 @@ fun UndoAdaptationCard(
                         }
                     }
                 }
+                Text(
+                    text = applied?.modifications?.firstOrNull()?.description()
+                        ?: "Se aplicó una ayuda visual para continuar con la tarea.",
+                    style = MaterialTheme.typography.bodyLarge.scaled(adaptiveUiState)
+                )
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     LargeSecondaryButton(text = "Deshacer cambio", onClick = onUndo, modifier = Modifier.weight(1f), adaptiveUiState = adaptiveUiState)
                     LargePrimaryButton(text = "Mantener así", onClick = onDismiss, modifier = Modifier.weight(1f), adaptiveUiState = adaptiveUiState)

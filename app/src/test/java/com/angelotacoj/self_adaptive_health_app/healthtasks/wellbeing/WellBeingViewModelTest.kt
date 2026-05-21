@@ -23,7 +23,7 @@ class WellBeingViewModelTest {
         assertNotNull(state)
         assertEquals("Nivel de energía", state?.label)
         assertEquals(5, state?.suggestedValue)
-        assertEquals("5", state?.valueText)
+        assertEquals("", state?.valueText)
         assertEquals(WellBeingStep.Intro, state?.step)
     }
 

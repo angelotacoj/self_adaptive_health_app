@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.activity.compose.BackHandler
 import kotlinx.coroutines.delay
+import com.angelotacoj.self_adaptive_health_app.adaptive.domain.engine.AdaptiveTiming
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.AdaptiveInteractionEventType
 import com.angelotacoj.self_adaptive_health_app.adaptive.presentation.components.AdaptiveConfirmationDialog
 import com.angelotacoj.self_adaptive_health_app.adaptive.presentation.components.AdaptiveSuggestionCard
@@ -30,6 +31,7 @@ fun AppointmentScreen(
     onRejectAdaptation: () -> Unit,
     onUndoAdaptation: () -> Unit,
     onHideHelp: () -> Unit,
+    onKeepAdaptation: () -> Unit,
     onTaskCompleted: () -> Unit,
     onExit: () -> Unit
 ) {
@@ -41,8 +43,8 @@ fun AppointmentScreen(
     }
     LaunchedEffect(screenId) {
         onLog(InteractionEventType.SCREEN_ENTERED, screenId, "Appointment step entered: $screenId.")
-        if (state.adaptiveUiState.isAdaptiveMode) {
-            delay(90_000)
+        if (AdaptiveTiming.prolongedTimeDetectionEnabled && state.step != AppointmentStep.Overview) {
+            delay(AdaptiveTiming.THRESHOLD_MEDIUM)
             onAdaptiveEvent(AdaptiveInteractionEventType.PROLONGED_TIME, screenId)
         }
     }
@@ -61,19 +63,22 @@ fun AppointmentScreen(
         AdaptiveSuggestionCard(state.adaptiveUiState.pendingAdaptation, onApplyAdaptation, onRejectAdaptation, state.adaptiveUiState)
         AdaptiveConfirmationDialog(state.adaptiveUiState.pendingAdaptation, onApplyAdaptation, onRejectAdaptation, onRejectAdaptation, state.adaptiveUiState)
         ContextualHelpBox(state.adaptiveUiState, onHideHelp)
-        UndoAdaptationCard(state.adaptiveUiState.undoMessageVisible, onUndoAdaptation, onHideHelp, state.adaptiveUiState)
+        UndoAdaptationCard(state.adaptiveUiState.undoMessageVisible, onUndoAdaptation, onKeepAdaptation, state.adaptiveUiState)
 
         when (state.step) {
             AppointmentStep.Overview -> {
-                TaskProgressHeader("Paso 1 de 4", "Resumen de citas")
-                InstructionCard(
-                    "Instrucciones de la tarea",
-                    listOf(
-                        "Verá tres citas ficticias.",
-                        "Encuentre la cita asignada a este participante.",
-                        "Recuerde la fecha, la hora y la indicación principal."
+                TaskProgressHeader("Paso 1 de 4", "Resumen de citas", adaptiveUiState = state.adaptiveUiState)
+                if (state.adaptiveUiState.isAdaptiveMode) {
+                    InstructionCard(
+                        "Instrucciones de la tarea",
+                        listOf(
+                            "Verá tres citas ficticias.",
+                            "Encuentre la cita asignada a este participante.",
+                            "Recuerde la fecha, la hora y la indicación principal."
+                        ),
+                        adaptiveUiState = state.adaptiveUiState
                     )
-                )
+                }
                 LargePrimaryButton(
                     text = "Ver lista de citas",
                     onClick = {
@@ -87,7 +92,7 @@ fun AppointmentScreen(
                 }
             }
             AppointmentStep.List -> {
-                TaskProgressHeader("Paso 2 de 4", "Lista de citas")
+                TaskProgressHeader("Paso 2 de 4", "Lista de citas", adaptiveUiState = state.adaptiveUiState)
                 state.appointmentOptions.forEach { appointment ->
                     AppointmentOptionCard(
                         appointment = appointment,
@@ -101,14 +106,15 @@ fun AppointmentScreen(
             }
             AppointmentStep.Detail -> {
                 val appointment = state.selectedAppointment ?: state.targetAppointment
-                TaskProgressHeader("Paso 3 de 4", "Detalle de la cita")
+                TaskProgressHeader("Paso 3 de 4", "Detalle de la cita", adaptiveUiState = state.adaptiveUiState)
                 SummaryReviewCard(
                     title = appointment.title,
                     rows = listOf(
                         "Fecha" to appointment.date,
                         "Hora" to appointment.time,
                         "Indicación" to appointment.instruction
-                    )
+                    ),
+                    adaptiveUiState = state.adaptiveUiState
                 )
                 ButtonRow(
                     primaryText = "Continuar a confirmación",
@@ -120,15 +126,18 @@ fun AppointmentScreen(
                     onSecondary = {
                         onAdaptiveEvent(AdaptiveInteractionEventType.BACK_PRESSED, screenId)
                         onAction(AppointmentAction.BackClicked)
-                    }
+                    },
+                    adaptiveUiState = state.adaptiveUiState
                 )
                 if (state.adaptiveUiState.isAdaptiveMode) {
                     LargeSecondaryButton("Necesito ayuda", { onAdaptiveEvent(AdaptiveInteractionEventType.HELP_REQUESTED, screenId) }, adaptiveUiState = state.adaptiveUiState)
                 }
             }
             AppointmentStep.Confirmation -> {
-                TaskProgressHeader("Paso 4 de 4", "Pregunta de confirmación")
-                InstructionCard("¿Encontró la fecha, la hora y la indicación?", listOf("Si no está seguro, puede revisar el detalle nuevamente."))
+                TaskProgressHeader("Paso 4 de 4", "Pregunta de confirmación", adaptiveUiState = state.adaptiveUiState)
+                if (state.adaptiveUiState.contextualHelpVisible || state.adaptiveUiState.guidedModeEnabled) {
+                    InstructionCard("¿Encontró la fecha, la hora y la indicación?", listOf("Si no está seguro, puede revisar el detalle nuevamente."), adaptiveUiState = state.adaptiveUiState)
+                }
                 ButtonRow(
                     primaryText = "Sí, continuar",
                     onPrimary = {
@@ -140,16 +149,19 @@ fun AppointmentScreen(
                     onSecondary = {
                         onAdaptiveEvent(AdaptiveInteractionEventType.BACK_PRESSED, screenId)
                         onAction(AppointmentAction.ReviewAgainClicked)
-                    }
+                    },
+                    adaptiveUiState = state.adaptiveUiState
                 )
             }
             AppointmentStep.Completed -> {
-                TaskProgressHeader("Completado", "Tarea completada")
-                InstructionCard("Cita revisada", listOf("La información ficticia de la cita fue encontrada y confirmada."))
+                TaskProgressHeader("Completado", "Tarea completada", adaptiveUiState = state.adaptiveUiState)
+                InstructionCard("Cita revisada", listOf("La información ficticia de la cita fue encontrada y confirmada."), adaptiveUiState = state.adaptiveUiState)
                 LargePrimaryButton("Volver al inicio", onExit, adaptiveUiState = state.adaptiveUiState)
             }
         }
-        LargeSecondaryButton("Cancelar tarea", { onLog(InteractionEventType.BUTTON_CLICKED, screenId, "T1 cancelled."); onExit() }, adaptiveUiState = state.adaptiveUiState)
+        if (state.adaptiveUiState.safeExitEnabled || !state.adaptiveUiState.isAdaptiveMode) {
+            LargeSecondaryButton("Cancelar tarea", { onLog(InteractionEventType.BUTTON_CLICKED, screenId, "T2 cancelled."); onExit() }, adaptiveUiState = state.adaptiveUiState)
+        }
     }
 }
 
@@ -161,7 +173,8 @@ private fun AppointmentOptionCard(
 ) {
     SummaryReviewCard(
         title = appointment.title,
-        rows = listOf("Fecha" to appointment.date, "Hora" to appointment.time, "Indicación" to appointment.instruction)
+        rows = listOf("Fecha" to appointment.date, "Hora" to appointment.time, "Indicación" to appointment.instruction),
+        adaptiveUiState = adaptiveUiState
     )
     LargePrimaryButton("Abrir ${appointment.title}", onClick, adaptiveUiState = adaptiveUiState)
 }
