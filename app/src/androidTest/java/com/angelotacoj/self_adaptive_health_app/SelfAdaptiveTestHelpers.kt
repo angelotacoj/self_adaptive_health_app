@@ -30,8 +30,23 @@ fun MainComposeRule.resetResearchData() {
     }
     AppContainer.knowledgeRepository.clearCurrentTaskAdaptationMemory()
     AppContainer.experimentLogger.clear()
-    activityRule.scenario.recreate()
-    waitForIdle()
+    waitUntil(timeoutMillis = 5_000) {
+        onAllNodesWithText("Configuración del experimento").fetchSemanticsNodes().isNotEmpty() ||
+            runCatching { onNodeWithTag("participant_suffix_input").fetchSemanticsNode() }.isSuccess
+    }
+}
+
+fun MainComposeRule.clearActiveSessionBeforeActivityDestroy() {
+    runCatching {
+        runBlocking {
+            AppContainer.experimentPreferences.clearActiveSessionPreferences()
+        }
+        waitUntil(timeoutMillis = 5_000) {
+            onAllNodesWithText("Configuración del experimento").fetchSemanticsNodes().isNotEmpty() ||
+                runCatching { onNodeWithTag("participant_suffix_input").fetchSemanticsNode() }.isSuccess
+        }
+        waitForIdle()
+    }
 }
 
 fun MainComposeRule.startGroupBSession(participantCode: String): String {

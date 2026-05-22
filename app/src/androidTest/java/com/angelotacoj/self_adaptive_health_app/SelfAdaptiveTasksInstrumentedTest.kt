@@ -28,7 +28,7 @@ class SelfAdaptiveTasksInstrumentedTest {
 
     @After
     fun leaveTaskBeforeActivityDestroy() {
-        composeRule.pressBackBestEffort()
+        composeRule.clearActiveSessionBeforeActivityDestroy()
     }
 
     @Test

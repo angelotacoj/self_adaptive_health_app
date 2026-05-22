@@ -26,14 +26,7 @@ class SelfAdaptiveT1InstrumentedTest {
 
     @After
     fun leaveTaskBeforeActivityDestroy() {
-        runCatching {
-            repeat(3) {
-                composeRule.activity.runOnUiThread {
-                    composeRule.activity.onBackPressedDispatcher.onBackPressed()
-                }
-                composeRule.waitForIdle()
-            }
-        }
+        composeRule.clearActiveSessionBeforeActivityDestroy()
     }
 
     @Test

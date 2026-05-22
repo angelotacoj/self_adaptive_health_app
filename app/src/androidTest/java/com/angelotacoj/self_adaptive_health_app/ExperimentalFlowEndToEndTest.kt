@@ -36,6 +36,7 @@ class ExperimentalFlowEndToEndTest {
     @After
     fun restoreAdaptiveTiming() {
         AdaptiveTiming.prolongedTimeDetectionEnabled = true
+        composeRule.clearActiveSessionBeforeActivityDestroy()
     }
 
     @Test

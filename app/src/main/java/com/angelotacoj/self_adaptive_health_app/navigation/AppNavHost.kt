@@ -262,6 +262,25 @@ fun AppNavHost(
         }
     }
 
+    LaunchedEffect(Unit) {
+        AppContainer.experimentPreferences.sessionSnapshot.collect { snapshot ->
+            if (snapshot.currentSessionId == null && sessionState != null) {
+                sessionState = null
+                existingSetupSession = null
+                pendingSetupSession = null
+                conditionTransitionState = null
+                sessionCompletedState = null
+                adaptiveViewModel.resetState()
+                knowledge.clearCurrentTaskAdaptationMemory()
+                navController.navigate(AppRoute.ExperimentSetup.route) {
+                    popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                    launchSingleTop = true
+                    restoreState = false
+                }
+            }
+        }
+    }
+
 
 
 
