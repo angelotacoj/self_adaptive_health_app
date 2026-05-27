@@ -1,10 +1,23 @@
 package com.angelotacoj.self_adaptive_health_app.experiment
 
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -39,7 +52,7 @@ fun InitialProfileScreen(
             q7.isNotEmpty() && q8.isNotEmpty()
 
     ScreenContainer(
-        title = "Perfil inicial",
+        title = "Construcción del perfil inicial",
         subtitle = "Por favor, responda a estas preguntas para personalizar su experiencia.",
         showNotice = false
     ) {
@@ -47,10 +60,10 @@ fun InitialProfileScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             ProfileQuestion(
-                question = "¿Prefiere que el texto de la aplicación sea más grande?",
+                question = "1. ¿Prefiere que el texto de la aplicación sea más grande?",
                 options = listOf("Sí", "No", "No estoy seguro(a)"),
                 selected = q1,
                 onSelect = { q1 = it },
@@ -58,7 +71,7 @@ fun InitialProfileScreen(
             )
 
             ProfileQuestion(
-                question = "¿Le resulta más cómodo usar botones grandes y separados?",
+                question = "2. ¿Le resulta más cómodo usar botones grandes y separados?",
                 options = listOf("Sí", "No", "No estoy seguro(a)"),
                 selected = q2,
                 onSelect = { q2 = it },
@@ -66,7 +79,7 @@ fun InitialProfileScreen(
             )
 
             ProfileQuestion(
-                question = "¿Prefiere que los íconos siempre tengan texto explicativo?",
+                question = "3. ¿Prefiere que los íconos siempre tengan texto explicativo?",
                 options = listOf("Sí", "No", "No estoy seguro(a)"),
                 selected = q3,
                 onSelect = { q3 = it },
@@ -74,7 +87,7 @@ fun InitialProfileScreen(
             )
 
             ProfileQuestion(
-                question = "¿Le gustaría recibir instrucciones paso a paso en tareas con varios pasos?",
+                question = "4. ¿Le gustaría recibir instrucciones paso a paso en tareas con varios pasos?",
                 options = listOf("Sí", "Solo si lo necesito", "No"),
                 selected = q4,
                 onSelect = { q4 = it },
@@ -82,7 +95,7 @@ fun InitialProfileScreen(
             )
 
             ProfileQuestion(
-                question = "¿Desea que la aplicación muestre una confirmación antes de guardar o finalizar información?",
+                question = "5. ¿Desea que la aplicación muestre una confirmación antes de guardar o finalizar información?",
                 options = listOf("Sí", "Solo en acciones importantes", "No"),
                 selected = q5,
                 onSelect = { q5 = it },
@@ -90,7 +103,7 @@ fun InitialProfileScreen(
             )
 
             ProfileQuestion(
-                question = "¿Qué tan cómodo(a) se siente usando aplicaciones móviles?",
+                question = "6. ¿Qué tan cómodo(a) se siente usando aplicaciones móviles?",
                 options = listOf("Poco cómodo(a)", "Regular", "Cómodo(a)"),
                 selected = q6,
                 onSelect = { q6 = it },
@@ -98,7 +111,7 @@ fun InitialProfileScreen(
             )
 
             ProfileQuestion(
-                question = "Cuando aparece un error en una aplicación, ¿prefiere que se le muestre un ejemplo de cómo corregirlo?",
+                question = "7. Cuando aparece un error en una aplicación, ¿prefiere que se le muestre un ejemplo de cómo corregirlo?",
                 options = listOf("Sí", "No", "No estoy seguro(a)"),
                 selected = q7,
                 onSelect = { q7 = it },
@@ -106,14 +119,12 @@ fun InitialProfileScreen(
             )
 
             ProfileQuestion(
-                question = "¿Prefiere que la aplicación le pregunte antes de cambiar la forma en que se ve la pantalla?",
+                question = "8. ¿Prefiere que la aplicación le pregunte antes de cambiar la forma en que se ve la pantalla?",
                 options = listOf("Sí", "Solo en cambios importantes", "No"),
                 selected = q8,
                 onSelect = { q8 = it },
                 optionTags = mapOf("Solo en cambios importantes" to "profile_question_8_important_only")
             )
-
-            Spacer(modifier = Modifier.height(16.dp))
 
             LargePrimaryButton(
                 text = "Guardar y continuar",
@@ -140,19 +151,21 @@ fun ProfileQuestion(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(text = question, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(text = question, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
             options.forEach { option ->
                 Row(
-                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().clickable{
+                        onSelect(option)
+                    }
                 ) {
                     RadioButton(
                         selected = selected == option,
                         onClick = { onSelect(option) },
                         modifier = optionTags[option]?.let { Modifier.testTag(it) } ?: Modifier
                     )
-                    Text(text = option, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(start = 8.dp))
+                    Text(text = option, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = 2.dp))
                 }
             }
         }

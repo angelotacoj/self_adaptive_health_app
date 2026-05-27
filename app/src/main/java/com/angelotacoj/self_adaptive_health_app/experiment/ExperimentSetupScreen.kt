@@ -1,6 +1,5 @@
 package com.angelotacoj.self_adaptive_health_app.experiment
 
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -12,24 +11,24 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.angelotacoj.self_adaptive_health_app.core.model.ExperimentGroup
 import com.angelotacoj.self_adaptive_health_app.core.model.ExperimentSession
+import com.angelotacoj.self_adaptive_health_app.core.security.ResearcherPinDialog
 import com.angelotacoj.self_adaptive_health_app.core.ui.HeroHeaderCard
 import com.angelotacoj.self_adaptive_health_app.core.ui.InstructionCard
+import com.angelotacoj.self_adaptive_health_app.core.ui.LargeDestructiveButton
 import com.angelotacoj.self_adaptive_health_app.core.ui.LargePrimaryButton
 import com.angelotacoj.self_adaptive_health_app.core.ui.LargeSecondaryButton
-import com.angelotacoj.self_adaptive_health_app.core.ui.LargeDestructiveButton
 import com.angelotacoj.self_adaptive_health_app.core.ui.ScreenContainer
-import com.angelotacoj.self_adaptive_health_app.core.ui.SimulatedDataNoticeCard
-import com.angelotacoj.self_adaptive_health_app.core.security.ResearcherPinDialog
 
 @Composable
 fun ExperimentSetupScreen(
@@ -54,7 +53,7 @@ fun ExperimentSetupScreen(
         )
     }
     ScreenContainer(
-        title = "Configuración AURA",
+        title = "Configuración inicial AURA",
         subtitle = "Preparación de la sesión experimental",
         showNotice = false
     ) {
@@ -63,25 +62,13 @@ fun ExperimentSetupScreen(
             description = "Prototipo de salud móvil simulada para evaluación de interfaces."
         )
 
-        //SimulatedDataNoticeCard()
-
-        InstructionCard(
-            title = "Antes de empezar",
-            instructions = listOf(
-                "Ingrese los últimos 4 dígitos del DNI o un código asignado de 4 caracteres.",
-                "Seleccione el grupo experimental para cargar los datos ficticios correctos.",
-                "No ingrese información real de salud."
-            )
-        )
-
         OutlinedTextField(
             value = state.participantSuffix,
             onValueChange = { onAction(ExperimentSetupAction.ParticipantSuffixChanged(it)) },
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("participant_suffix_input"),
-            label = { Text("Últimos 4 dígitos del DNI o código asignado") },
-            supportingText = { Text("Se aceptan 4 caracteres alfanuméricos. No ingrese el DNI completo.") },
+            label = { Text(text = "Código asignado", fontSize = 14.sp) },
             textStyle = MaterialTheme.typography.titleLarge,
             singleLine = true,
             shape = MaterialTheme.shapes.large,
@@ -94,14 +81,14 @@ fun ExperimentSetupScreen(
         if (generatedParticipantCode != null && state.participantSuffix.length == 4) {
             Text(
                 text = "Código generado: $generatedParticipantCode",
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
             )
         }
 
         Text(
             text = "Seleccione el grupo experimental",
-            style = MaterialTheme.typography.titleLarge,
+            style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold
         )
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -133,32 +120,19 @@ fun ExperimentSetupScreen(
                     ) {
                         Text(
                             text = group.label,
-                            style = MaterialTheme.typography.titleMedium,
+                            style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
                             text = group.orderDescription,
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
             }
         }
-
-/*        Text(
-            text = "Información adicional",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.SemiBold
-        )
-
-        InstructionCard(
-            title = "Orden asignado",
-            instructions = listOf(
-                state.selectedOrder
-            )
-        )*/
 
         if (state.errorMessage != null) {
             Text(
@@ -185,7 +159,7 @@ fun ExperimentSetupScreen(
                     if (event is ExperimentSetupEvent.StartSession) {
                         val code = generatedParticipantCode
                         if (code != null) {
-                            onStartSession(ExperimentSession(participantCode = code, group = event.group))
+                            onStartSession(ExperimentSession(participantId = code, group = event.group))
                         }
                     }
                 }

@@ -64,8 +64,8 @@ fun AccessScreen(
 
     LaunchedEffect(screenId) {
         onLog(InteractionEventType.SCREEN_ENTERED, screenId, "Access step entered: $screenId.")
-        if (AdaptiveTiming.prolongedTimeDetectionEnabled && state.step != AccessStep.Intro) {
-            delay(AdaptiveTiming.THRESHOLD_SHORT)
+        if (AdaptiveTiming.prolongedTimeDetectionEnabled) {
+            delay(AdaptiveTiming.getThresholdForScreen(screenId))
             onAdaptiveEvent(AdaptiveInteractionEventType.PROLONGED_TIME, screenId)
         }
     }

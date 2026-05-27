@@ -63,10 +63,10 @@ class ExperimentalFlowEndToEndTest {
 
     @Test
     fun activeSession_persistsInRoomAndDataStoreForRecovery() {
-        val participantCode = composeRule.startGroupASession("E2E_RESTORE_001")
+        val participantId = composeRule.startGroupASession("E2E_RESTORE_001")
         composeRule.completeT1Access(userCode = "PACIENTE01", pin = "1234", selfAdaptive = false)
         composeRule.assertRoomCompletionCounts(total = 1, static = 1, selfAdaptive = 0)
-        composeRule.assertActiveSessionSnapshot(participantCode = participantCode)
+        composeRule.assertActiveSessionSnapshot(participantId = participantId)
         composeRule.assertTextExists("Etapa 1")
         composeRule.onNodeWithText("T1 Acceder con código/PIN simulado").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithTag("start_t1_access").performScrollTo().assertIsNotEnabled()
@@ -93,6 +93,8 @@ class ExperimentalFlowEndToEndTest {
         composeRule.assertTextAbsent("Ayuda del sistema")
         composeRule.assertTextAbsent("Sugerencia de adaptación")
         composeRule.assertTextAbsent("Cambio aplicado automáticamente")
+
+        composeRule.pressBackBestEffort()
     }
 }
 
@@ -196,13 +198,13 @@ private fun MainComposeRule.assertRoomCompletionCounts(
     }
 }
 
-private fun MainComposeRule.assertActiveSessionSnapshot(participantCode: String) {
+private fun MainComposeRule.assertActiveSessionSnapshot(participantId: String) {
     waitUntil(timeoutMillis = 10_000) {
         runBlocking {
             val snapshot = AppContainer.experimentPreferences.sessionSnapshot.first()
             val session = snapshot.currentSessionId?.let { AppContainer.database.experimentDao().getSessionById(it) }
             snapshot.isSessionActive &&
-                session?.participantCode == participantCode &&
+                session?.participantId == participantId &&
                 AppContainer.database.experimentDao().getTotalCompletedTaskCount(session.sessionId) == 1
         }
     }

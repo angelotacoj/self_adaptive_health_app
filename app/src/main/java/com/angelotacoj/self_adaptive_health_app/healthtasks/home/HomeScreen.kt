@@ -93,7 +93,7 @@ fun HomeScreen(
         )
 
         SessionInfoCard(
-            participantCode = state.session.participantCode,
+            participantId = state.session.participantId,
             group = state.session.group.label,
             condition = "Etapa ${state.session.currentConditionIndex + 1}",
             dataSet = state.dataSet.id

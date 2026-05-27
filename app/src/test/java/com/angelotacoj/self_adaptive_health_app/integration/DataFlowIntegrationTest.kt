@@ -3,6 +3,7 @@ package com.angelotacoj.self_adaptive_health_app.integration
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.core.app.ApplicationProvider
 import com.angelotacoj.self_adaptive_health_app.MainDispatcherRule
+import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.AdaptationLevel
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.AdaptationRuleId
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.repository.PersistentKnowledgeRepository
 import com.angelotacoj.self_adaptive_health_app.adaptive.presentation.state.AdaptiveUiState
@@ -46,29 +47,31 @@ class DataFlowIntegrationTest {
         val adaptiveState = AdaptiveUiState(
             isAdaptiveMode = true,
             lastAppliedAdaptation = com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.AppliedAdaptation(
-                ruleId = AdaptationRuleId.AR02,
-                modifications = emptyList()
+                ruleId = AdaptationRuleId.AR01_TIME_ON_SCREEN,
+                modifications = emptyList(),
+                level = AdaptationLevel.LEVEL_1_LIGHT_SUPPORT
             )
         )
         
         // The UI would call this when "Undo" is pressed
-        repository.rememberRejected(com.angelotacoj.self_adaptive_health_app.core.logging.TaskId.T1_ACCESS, AdaptationRuleId.AR02)
+        repository.rememberRejected(
+            com.angelotacoj.self_adaptive_health_app.core.logging.TaskId.T1_ACCESS,
+            AdaptationRuleId.AR01_TIME_ON_SCREEN,
+            AdaptationLevel.LEVEL_1_LIGHT_SUPPORT
+        )
 
         // Verify that the repository now knows it's rejected
         val snapshot = repository.snapshot(com.angelotacoj.self_adaptive_health_app.core.logging.TaskId.T1_ACCESS, null)
-        assert(snapshot.rejectedRulesForTask.contains(AdaptationRuleId.AR02))
+        assert(snapshot.rejectedRuleLevelsForTask.contains(Pair(AdaptationRuleId.AR01_TIME_ON_SCREEN, AdaptationLevel.LEVEL_1_LIGHT_SUPPORT)))
     }
 
     @Test
     fun `text scaling scales font size correctly`() {
-        val stateNormal = AdaptiveUiState(textScale = 1.0f)
-        val stateLarge = AdaptiveUiState(textScale = 1.5f)
+        val stateNormal = AdaptiveUiState(uim01Level = AdaptationLevel.LEVEL_0_BASE)
+        val stateLarge = AdaptiveUiState(uim01Level = AdaptationLevel.LEVEL_3_HIGH_SUPPORT)
 
-        // This is a unit test for the scaling logic inside AdaptiveComponents
-        // Since we can't easily check actual rendered pixels in Robolectric without native graphics,
-        // we verify the state object and the logic that would be passed to the Text component.
-        
+        // Verify state object values that would be passed to components
         assertEquals(1.0f, stateNormal.textScale)
-        assertEquals(1.5f, stateLarge.textScale)
+        assertEquals(1.35f, stateLarge.textScale)
     }
 }

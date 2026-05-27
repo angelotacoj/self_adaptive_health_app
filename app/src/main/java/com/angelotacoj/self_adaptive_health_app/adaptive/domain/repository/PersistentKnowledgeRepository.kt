@@ -1,5 +1,6 @@
 package com.angelotacoj.self_adaptive_health_app.adaptive.domain.repository
 
+import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.AdaptationLevel
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.AdaptationRuleId
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.KnowledgeSnapshot
 import com.angelotacoj.self_adaptive_health_app.core.logging.DebugLogEntry
@@ -17,7 +18,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 
 class PersistentKnowledgeRepository(
     private val preferences: ExperimentPreferences,
@@ -25,7 +25,7 @@ class PersistentKnowledgeRepository(
 ) : InMemoryKnowledgeRepository() {
     override suspend fun getCurrentSession(): String? {
         val snapshot = preferences.sessionSnapshot.first()
-        return snapshot.participantCode?.let { "${it}_${snapshot.currentDataSet ?: "dataset"}" }
+        return snapshot.participantId?.let { "${it}_${snapshot.currentDataSet ?: "dataset"}" }
     }
 
     override suspend fun getCurrentCondition(): String? {
@@ -33,36 +33,70 @@ class PersistentKnowledgeRepository(
     }
 
     override fun snapshot(taskId: TaskId?, screenId: ScreenId?): KnowledgeSnapshot {
-        if (taskId != null) {
-            runBlocking(Dispatchers.IO) {
-                val prefs = dao.getPreferencesForTask(taskId.name)
-                prefs.forEach { pref ->
-                    if (pref.suppressAutomatic) {
-                        val rules = rejectedByTask.getOrPut(taskId) { mutableSetOf() }
-                        rules.add(AdaptationRuleId.valueOf(pref.ruleId))
-                    }
-                }
-            }
-        }
         return super.snapshot(taskId, screenId)
     }
 
-    override fun rememberRejected(taskId: TaskId?, ruleId: AdaptationRuleId) {
-        super.rememberRejected(taskId, ruleId)
+    override suspend fun clearTask(taskId: TaskId?) {
+        super.clearTask(taskId)
+        if (taskId != null) {
+            val prefs = dao.getActivePreferences(taskId.name)
+            prefs.forEach { pref ->
+                if (pref.suppressAutomatic) {
+                    try {
+                        val rule = AdaptationRuleId.valueOf(pref.ruleId)
+                        val level = AdaptationLevel.entries.find { it.levelValue == pref.targetLevel } ?: AdaptationLevel.LEVEL_1_LIGHT_SUPPORT
+                        val levels = rejectedLevelsByTask.getOrPut(taskId) { mutableSetOf() }
+                        levels.add(Pair(rule, level))
+                        val rules = rejectedByTask.getOrPut(taskId) { mutableSetOf() }
+                        rules.add(rule)
+                    } catch (e: Exception) {}
+                }
+            }
+        }
+    }
+
+    override fun rememberRejected(
+        taskId: TaskId?,
+        ruleId: AdaptationRuleId,
+        level: AdaptationLevel
+    ) {
+        super.rememberRejected(taskId, ruleId, level)
         if (taskId != null) {
             MainScope().launch(Dispatchers.IO) {
-                val existing = dao.getAdaptationPreference(ruleId.name, taskId.name, "ANY")
+                val existing = dao.getAdaptationPreference(ruleId.name, level.levelValue, com.angelotacoj.self_adaptive_health_app.core.persistence.room.RejectionScope.TASK.name, taskId.name)
                 val newRejectedCount = (existing?.rejectedCount ?: 0) + 1
                 dao.insertAdaptationPreference(
                     AdaptationPreferenceEntity(
                         ruleId = ruleId.name,
+                        targetLevel = level.levelValue,
+                        scope = com.angelotacoj.self_adaptive_health_app.core.persistence.room.RejectionScope.TASK.name,
                         taskId = taskId.name,
-                        screenId = "ANY",
+                        screenId = null,
                         rejectedCount = newRejectedCount,
                         lastRejectedAt = System.currentTimeMillis(),
                         suppressAutomatic = newRejectedCount >= 2
                     )
                 )
+
+                // Check for SESSION promotion: at least two DIFFERENT tasks rejected this rule + level
+                val distinctTaskCount = dao.countDistinctTasksForRejection(ruleId.name, level.levelValue)
+                if (distinctTaskCount >= 2) {
+                    val existingSession = dao.getAdaptationPreference(ruleId.name, level.levelValue, com.angelotacoj.self_adaptive_health_app.core.persistence.room.RejectionScope.SESSION.name, null)
+                    if (existingSession == null) {
+                        dao.insertAdaptationPreference(
+                            AdaptationPreferenceEntity(
+                                ruleId = ruleId.name,
+                                targetLevel = level.levelValue,
+                                scope = com.angelotacoj.self_adaptive_health_app.core.persistence.room.RejectionScope.SESSION.name,
+                                taskId = null,
+                                screenId = null,
+                                rejectedCount = 1,
+                                lastRejectedAt = System.currentTimeMillis(),
+                                suppressAutomatic = true
+                            )
+                        )
+                    }
+                }
             }
         }
     }
@@ -72,7 +106,7 @@ class PersistentKnowledgeRepository(
             InteractionEventEntity(
                 eventId = entry.id,
                 sessionId = getCurrentSession() ?: "local_session",
-                participantCode = entry.participantCode,
+                participantId = entry.participantId,
                 condition = entry.condition.name,
                 taskId = entry.taskId?.name,
                 screenId = entry.screenId?.name,

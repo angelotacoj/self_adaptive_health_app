@@ -24,7 +24,8 @@ enum class InteractionEventType {
     ADAPTATION_SUGGESTED,
     ADAPTATION_APPLIED,
     ADAPTATION_REJECTED,
-    ADAPTATION_UNDONE
+    ADAPTATION_UNDONE,
+    ADAPTATION_SUPPRESSED
 }
 
 enum class TaskId(val label: String) {
@@ -70,13 +71,23 @@ enum class ScreenId {
 data class DebugLogEntry(
     val id: String = UUID.randomUUID().toString(),
     val timestamp: Long = System.currentTimeMillis(),
-    val participantCode: String,
+    val participantId: String,
+    val sessionId: String? = null,
     val group: ExperimentGroup,
     val condition: ExperimentCondition = ExperimentCondition.STATIC_UI,
     val taskId: TaskId? = null,
     val screenId: ScreenId? = null,
     val eventType: InteractionEventType,
     val message: String,
+    
+    val observedSignal: com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.ObservedInteractionSignal? = null,
+    val inferredDifficulty: com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.InferredDifficulty? = null,
+    val adaptationRule: com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.AdaptationRuleId? = null,
+    val targetComponent: com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.UiModification? = null,
+    val previousLevel: com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.AdaptationLevel? = null,
+    val newLevel: com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.AdaptationLevel? = null,
+    val userDecision: com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.UserDecision? = null,
+
     val metadata: Map<String, String> = emptyMap()
 )
 

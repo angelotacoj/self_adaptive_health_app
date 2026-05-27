@@ -13,6 +13,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.angelotacoj.self_adaptive_health_app.core.ui.LargePrimaryButton
@@ -27,6 +28,7 @@ fun ResearcherPinDialog(
     var error by remember { mutableStateOf(false) }
 
     AlertDialog(
+        containerColor = Color.White,
         onDismissRequest = onCancel,
         title = { Text("PIN del investigador") },
         text = {

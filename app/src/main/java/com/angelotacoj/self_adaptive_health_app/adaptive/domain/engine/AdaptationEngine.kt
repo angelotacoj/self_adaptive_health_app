@@ -1,5 +1,6 @@
 package com.angelotacoj.self_adaptive_health_app.adaptive.domain.engine
 
+import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.AdaptationLevel
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.AdaptationPlan
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.AdaptationRuleId
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.AdaptiveInteractionEvent
@@ -23,9 +24,12 @@ import java.util.UUID
 
 sealed interface AdaptationEngineResult {
     data object NoAdaptation : AdaptationEngineResult
+    data class Suppressed(val ruleId: AdaptationRuleId, val reason: String, val level: AdaptationLevel? = null) : AdaptationEngineResult
     data class Applied(val state: AdaptiveUiState, val plan: AdaptationPlan) : AdaptationEngineResult
     data class RequiresUserValidation(val state: AdaptiveUiState, val plan: AdaptationPlan) : AdaptationEngineResult
 }
+
+class MaxLevelReachedException(val ruleId: AdaptationRuleId) : Exception("Max level reached")
 
 interface InteractionMonitor {
     fun recordEvent(event: AdaptiveInteractionEvent)
@@ -47,7 +51,8 @@ interface AdaptationPlanner {
         signals: List<ObservedInteractionSignal>,
         taskState: TaskInteractionState,
         knowledge: KnowledgeSnapshot,
-        event: AdaptiveInteractionEvent
+        event: AdaptiveInteractionEvent,
+        currentState: AdaptiveUiState
     ): AdaptationPlan?
 }
 
@@ -76,20 +81,20 @@ class InteractionMonitorImpl : InteractionMonitor {
         val taskEvents = events.filter { it.taskId == taskState.taskId }
         val screenEvents = taskEvents.filter { it.screenId == taskState.screenId }
         val signals = mutableListOf<ObservedInteractionSignal>()
-        
-        if (screenEvents.count { it.eventType == AdaptiveInteractionEventType.TOUCH_ERROR } == 2) {
-            signals += ObservedInteractionSignal.OIS01_TOUCH_ERRORS
+
+        if (screenEvents.count { it.eventType == AdaptiveInteractionEventType.TOUCH_ERROR } >= 2) {
+            signals += ObservedInteractionSignal.OIS04_FIELD_ERROR
         }
-        
-        if (taskEvents.any { it.eventType == AdaptiveInteractionEventType.PROLONGED_TIME }) signals += ObservedInteractionSignal.OIS02_PROLONGED_TIME
-        if (taskEvents.any { it.eventType == AdaptiveInteractionEventType.CONFIRMATION_PAUSE }) signals += ObservedInteractionSignal.OIS03_CONFIRMATION_PAUSE
-        if (taskEvents.count { it.eventType == AdaptiveInteractionEventType.BACK_PRESSED } >= 2) signals += ObservedInteractionSignal.OIS04_BACKTRACKING
-        if (taskEvents.any { it.eventType == AdaptiveInteractionEventType.HELP_REQUESTED }) signals += ObservedInteractionSignal.OIS05_HELP_REQUEST
-        if (taskEvents.any { it.eventType == AdaptiveInteractionEventType.FIELD_ERROR } || taskState.fieldErrorCount > 0) signals += ObservedInteractionSignal.OIS06_FIELD_ERROR
-        if (taskEvents.any { it.eventType == AdaptiveInteractionEventType.ADAPTATION_REJECTED }) signals += ObservedInteractionSignal.OIS07_ADAPTATION_REJECTED
-        if (taskEvents.any { it.eventType == AdaptiveInteractionEventType.SENSITIVE_ACTION }) signals += ObservedInteractionSignal.OIS08_SENSITIVE_ACTION
-        
-        return signals
+
+        if (taskEvents.any { it.eventType == AdaptiveInteractionEventType.PROLONGED_TIME }) signals += ObservedInteractionSignal.OIS01_TIME_ON_SCREEN
+        if (taskEvents.any { it.eventType == AdaptiveInteractionEventType.CONFIRMATION_PAUSE }) signals += ObservedInteractionSignal.OIS05_CONFIRMATION_PAUSE
+        if (taskEvents.count { it.eventType == AdaptiveInteractionEventType.BACK_PRESSED } >= 2) signals += ObservedInteractionSignal.OIS02_BACKTRACKING
+        if (taskEvents.any { it.eventType == AdaptiveInteractionEventType.HELP_REQUESTED }) signals += ObservedInteractionSignal.OIS03_HELP_REQUEST
+        if (taskEvents.any { it.eventType == AdaptiveInteractionEventType.FIELD_ERROR } || taskState.fieldErrorCount > 0) signals += ObservedInteractionSignal.OIS04_FIELD_ERROR
+        if (taskEvents.any { it.eventType == AdaptiveInteractionEventType.ADAPTATION_REJECTED }) signals += ObservedInteractionSignal.OIS03_HELP_REQUEST
+        if (taskEvents.any { it.eventType == AdaptiveInteractionEventType.SENSITIVE_ACTION }) signals += ObservedInteractionSignal.OIS05_CONFIRMATION_PAUSE
+
+        return signals.distinct()
     }
 
     override fun clearEvents(taskId: TaskId?) {
@@ -105,14 +110,11 @@ class DifficultyAnalyzer : AdaptationAnalyzer {
     ): List<InferredDifficulty> {
         return signals.mapNotNull {
             when (it) {
-                ObservedInteractionSignal.OIS01_TOUCH_ERRORS -> InferredDifficulty.DI01_MOTOR_PRECISION
-                ObservedInteractionSignal.OIS02_PROLONGED_TIME,
-                ObservedInteractionSignal.OIS06_FIELD_ERROR -> InferredDifficulty.DI02_VISUAL_OR_COGNITIVE
-                ObservedInteractionSignal.OIS04_BACKTRACKING -> InferredDifficulty.DI03_FLOW_DISORIENTATION
-                ObservedInteractionSignal.OIS03_CONFIRMATION_PAUSE,
-                ObservedInteractionSignal.OIS05_HELP_REQUEST,
-                ObservedInteractionSignal.OIS08_SENSITIVE_ACTION -> InferredDifficulty.DI04_DOUBT_OR_NEED_FOR_CONTROL
-                ObservedInteractionSignal.OIS07_ADAPTATION_REJECTED -> InferredDifficulty.DI05_USER_PREFERENCE_OR_LOSS_OF_CONTROL
+                ObservedInteractionSignal.OIS01_TIME_ON_SCREEN -> InferredDifficulty.DI01_LEGIBILITY_DIFFICULTY
+                ObservedInteractionSignal.OIS02_BACKTRACKING -> InferredDifficulty.DI02_COMPREHENSION_ORIENTATION_DIFFICULTY
+                ObservedInteractionSignal.OIS03_HELP_REQUEST -> InferredDifficulty.DI02_COMPREHENSION_ORIENTATION_DIFFICULTY
+                ObservedInteractionSignal.OIS04_FIELD_ERROR -> InferredDifficulty.DI03_RECOVERY_UNCERTAINTY_DIFFICULTY
+                ObservedInteractionSignal.OIS05_CONFIRMATION_PAUSE -> InferredDifficulty.DI04_CONTROL_CONFIRMATION_DOUBT
             }
         }.distinct()
     }
@@ -124,21 +126,51 @@ class RulePlanner : AdaptationPlanner {
         signals: List<ObservedInteractionSignal>,
         taskState: TaskInteractionState,
         knowledge: KnowledgeSnapshot,
-        event: AdaptiveInteractionEvent
+        event: AdaptiveInteractionEvent,
+        currentState: AdaptiveUiState
     ): AdaptationPlan? {
         val rule = when {
-            ObservedInteractionSignal.OIS03_CONFIRMATION_PAUSE in signals -> AdaptationRuleId.AR03
-            ObservedInteractionSignal.OIS08_SENSITIVE_ACTION in signals -> AdaptationRuleId.AR08
-            ObservedInteractionSignal.OIS06_FIELD_ERROR in signals -> AdaptationRuleId.AR06
-            ObservedInteractionSignal.OIS05_HELP_REQUEST in signals -> AdaptationRuleId.AR05
-            ObservedInteractionSignal.OIS04_BACKTRACKING in signals -> AdaptationRuleId.AR04
-            ObservedInteractionSignal.OIS01_TOUCH_ERRORS in signals -> AdaptationRuleId.AR01
-            ObservedInteractionSignal.OIS02_PROLONGED_TIME in signals -> AdaptationRuleId.AR02
-            ObservedInteractionSignal.OIS07_ADAPTATION_REJECTED in signals -> AdaptationRuleId.AR07
+            ObservedInteractionSignal.OIS05_CONFIRMATION_PAUSE in signals -> AdaptationRuleId.AR05_CONFIRMATION_PAUSE
+            ObservedInteractionSignal.OIS04_FIELD_ERROR in signals -> AdaptationRuleId.AR04_FIELD_ERROR
+            ObservedInteractionSignal.OIS03_HELP_REQUEST in signals -> AdaptationRuleId.AR03_HELP_REQUEST
+            ObservedInteractionSignal.OIS02_BACKTRACKING in signals -> AdaptationRuleId.AR02_BACKTRACKING
+            ObservedInteractionSignal.OIS01_TIME_ON_SCREEN in signals -> AdaptationRuleId.AR01_TIME_ON_SCREEN
             else -> return null
         }
-        if (rule in knowledge.rejectedRulesForTask && rule != AdaptationRuleId.AR07) return null
-        return rule.toPlan(signals, difficulties, taskState.taskId, taskState.screenId, event.reviewSummary)
+
+        // Determine current support level of the target component
+        val currentLevel = when (rule) {
+            AdaptationRuleId.AR01_TIME_ON_SCREEN -> currentState.uim01Level
+            AdaptationRuleId.AR02_BACKTRACKING -> currentState.uim02Level
+            AdaptationRuleId.AR03_HELP_REQUEST -> currentState.uim02Level
+            AdaptationRuleId.AR04_FIELD_ERROR -> currentState.uim04Level
+            AdaptationRuleId.AR05_CONFIRMATION_PAUSE -> currentState.uim03Level
+        }
+
+        // Calculate next level using the skip-rejected loop policy
+        val targetLevel = getNextValidLevel(rule, currentLevel, knowledge) ?: return null
+
+        return rule.toPlan(signals, difficulties, taskState.taskId, taskState.screenId, targetLevel, event.reviewSummary)
+    }
+
+    private fun getNextValidLevel(
+        ruleId: AdaptationRuleId,
+        currentLevel: AdaptationLevel,
+        knowledge: KnowledgeSnapshot
+    ): AdaptationLevel? {
+        var nextLevelVal = currentLevel.levelValue + 1
+        while (nextLevelVal <= AdaptationLevel.LEVEL_3_HIGH_SUPPORT.levelValue) {
+            val candidate = AdaptationLevel.entries.find { it.levelValue == nextLevelVal } ?: break
+            val isRejected = Pair(ruleId, candidate) in knowledge.rejectedRuleLevelsForTask
+            if (!isRejected) {
+                return candidate
+            }
+            nextLevelVal++
+        }
+        if (currentLevel == AdaptationLevel.LEVEL_3_HIGH_SUPPORT || nextLevelVal > AdaptationLevel.LEVEL_3_HIGH_SUPPORT.levelValue) {
+            throw MaxLevelReachedException(ruleId)
+        }
+        return null
     }
 }
 
@@ -150,15 +182,15 @@ class SafetyAdaptationController : AdaptationController {
     ): ControlledAdaptationPlan {
         if (plan.difficulties.isEmpty()) return ControlledAdaptationPlan(plan, false, ValidationResult.REJECTED, "No difficulties identified.")
 
-        val isSensitiveAction = plan.signals.contains(ObservedInteractionSignal.OIS08_SENSITIVE_ACTION)
+        val isSensitiveAction = plan.signals.contains(ObservedInteractionSignal.OIS05_CONFIRMATION_PAUSE)
         if (isSensitiveAction && plan.validationType == ValidationType.NON_INTRUSIVE) {
             return ControlledAdaptationPlan(plan.copy(validationType = ValidationType.EXPLICIT), true, ValidationResult.ADJUSTED, "Intrusive adaptation during sensitive action.")
         }
 
-        val recentlyRejected = knowledge.lastRejectionAt?.let { System.currentTimeMillis() - it < 20_000 } == true
-        if (recentlyRejected && plan.validationType == ValidationType.SUGGESTED) return ControlledAdaptationPlan(plan, false, ValidationResult.REJECTED, "Recent rejection.")
+        val recentlyRejected = knowledge.lastRejectionAt?.let { System.currentTimeMillis() - it < 60_000 } == true
+        if (recentlyRejected && plan.validationType == ValidationType.SUGGESTED) return ControlledAdaptationPlan(plan, false, ValidationResult.REJECTED, "RECENT_REJECTION_COOLDOWN")
 
-        if (plan.validationType == ValidationType.SUGGESTED && knowledge.suggestionsShownForTask >= 2) return ControlledAdaptationPlan(plan, false, ValidationResult.REJECTED, "Suggestion saturation.")
+        if (plan.validationType == ValidationType.SUGGESTED && knowledge.suggestionsShownForTask >= 3) return ControlledAdaptationPlan(plan, false, ValidationResult.REJECTED, "SUGGESTION_SATURATION")
         if (plan.validationType == ValidationType.EXPLICIT && knowledge.modalShownForScreen) return ControlledAdaptationPlan(plan, false, ValidationResult.REJECTED, "Modal already shown.")
 
         return ControlledAdaptationPlan(plan, true, ValidationResult.APPROVED)
@@ -167,80 +199,69 @@ class SafetyAdaptationController : AdaptationController {
 
 class ComposeAdaptationExecutor(private val knowledgeRepository: KnowledgeRepository) : AdaptationExecutor {
     override fun apply(plan: AdaptationPlan, currentState: AdaptiveUiState): AdaptiveUiState {
-        val previousStateSnapshot = mutableMapOf<String, Any>()
-        plan.modifications.forEach { modification ->
-            when (modification) {
-                UiModification.UIM01_TEXT_SIZE -> previousStateSnapshot["textScale"] = currentState.textScale
-                UiModification.UIM02_CONTRAST -> previousStateSnapshot["highContrast"] = currentState.highContrast
-                UiModification.UIM03_TOUCH_TARGETS -> previousStateSnapshot["enlargedTouchTargets"] = currentState.enlargedTouchTargets
-                UiModification.UIM04_SPACING -> previousStateSnapshot["increasedSpacing"] = currentState.increasedSpacing
-                UiModification.UIM05_ICONS_LABELS -> previousStateSnapshot["showIconLabels"] = currentState.showIconLabels
-                UiModification.UIM06_CONTEXTUAL_HELP -> {
-                    previousStateSnapshot["contextualHelpVisible"] = currentState.contextualHelpVisible
-                    previousStateSnapshot["contextualHelpMessage"] = currentState.contextualHelpMessage ?: ""
-                }
-                UiModification.UIM07_GUIDED_NAVIGATION -> {
-                    previousStateSnapshot["guidedModeEnabled"] = currentState.guidedModeEnabled
-                    previousStateSnapshot["guidedStepMessage"] = currentState.guidedStepMessage ?: ""
-                }
-                UiModification.UIM08_REINFORCED_CONFIRMATION -> previousStateSnapshot["reinforcedConfirmationVisible"] = currentState.reinforcedConfirmationVisible
-                UiModification.UIM09_VISUAL_FEEDBACK -> {
-                    previousStateSnapshot["contextualHelpVisible"] = currentState.contextualHelpVisible
-                    previousStateSnapshot["contextualHelpMessage"] = currentState.contextualHelpMessage ?: ""
-                }
-                UiModification.UIM10_SAFE_EXIT -> previousStateSnapshot["safeExitEnabled"] = currentState.safeExitEnabled
-            }
-        }
+        val previousStateSnapshot = mapOf<String, Any>(
+            "uim01Level" to currentState.uim01Level,
+            "uim02Level" to currentState.uim02Level,
+            "uim03Level" to currentState.uim03Level,
+            "uim04Level" to currentState.uim04Level
+        )
 
-        val state = plan.modifications.fold(currentState.copy(pendingAdaptation = null)) { acc, modification ->
-            when (modification) {
-                UiModification.UIM01_TEXT_SIZE -> acc.copy(textScale = 1.25f)
-                UiModification.UIM02_CONTRAST -> acc.copy(highContrast = true)
-                UiModification.UIM03_TOUCH_TARGETS -> acc.copy(enlargedTouchTargets = true)
-                UiModification.UIM04_SPACING -> acc.copy(increasedSpacing = true)
-                UiModification.UIM05_ICONS_LABELS -> acc.copy(showIconLabels = true)
-                UiModification.UIM06_CONTEXTUAL_HELP -> acc.copy(contextualHelpVisible = true, contextualHelpMessage = plan.message)
-                UiModification.UIM07_GUIDED_NAVIGATION -> acc.copy(guidedModeEnabled = true, guidedStepMessage = "Siga esta tarea paso a paso.")
-                UiModification.UIM08_REINFORCED_CONFIRMATION -> acc.copy(reinforcedConfirmationVisible = true)
-                UiModification.UIM09_VISUAL_FEEDBACK -> acc.copy(contextualHelpVisible = true, contextualHelpMessage = plan.message)
-                UiModification.UIM10_SAFE_EXIT -> acc.copy(safeExitEnabled = true)
+        var state = currentState.copy(pendingAdaptation = null)
+        plan.modifications.forEach { modification ->
+            state = when (modification) {
+                UiModification.UIM01_TEXT -> state.copy(uim01Level = plan.targetLevel)
+                UiModification.UIM02_CONTEXTUAL_HELP_STEP_BY_STEP -> {
+                    state.copy(
+                        uim02Level = plan.targetLevel,
+                        contextualHelpMessage = plan.message,
+                        guidedStepMessage = if (plan.targetLevel == AdaptationLevel.LEVEL_3_HIGH_SUPPORT) plan.message else null
+                    )
+                }
+                UiModification.UIM03_REINFORCED_CONFIRMATION -> state.copy(uim03Level = plan.targetLevel)
+                UiModification.UIM04_VISUAL_FEEDBACK -> {
+                    state.copy(
+                        uim04Level = plan.targetLevel,
+                        contextualHelpMessage = plan.message
+                    )
+                }
             }
         }
 
         if (plan.validationType == ValidationType.SUGGESTED) knowledgeRepository.rememberSuggested(plan.taskId, plan.ruleId)
         if (plan.validationType == ValidationType.EXPLICIT) knowledgeRepository.rememberModal(plan.screenId, plan.ruleId)
 
-        val undoable = plan.ruleId in setOf(AdaptationRuleId.AR01, AdaptationRuleId.AR02, AdaptationRuleId.AR04)
+        val undoable = plan.ruleId in setOf(AdaptationRuleId.AR01_TIME_ON_SCREEN, AdaptationRuleId.AR02_BACKTRACKING)
         return state.copy(
-            lastAppliedAdaptation = if (undoable) AppliedAdaptation(plan.ruleId, plan.modifications, previousStateSnapshot) else currentState.lastAppliedAdaptation,
+            lastAppliedAdaptation = if (undoable) AppliedAdaptation(plan.ruleId, plan.modifications, previousStateSnapshot, level = plan.targetLevel) else currentState.lastAppliedAdaptation,
             undoMessageVisible = undoable
         )
     }
 
     override fun undo(plan: AdaptationPlan, currentState: AdaptiveUiState): AdaptiveUiState {
-        knowledgeRepository.rememberRejected(plan.taskId, plan.ruleId)
+        knowledgeRepository.rememberRejected(plan.taskId, plan.ruleId, plan.targetLevel)
         val lastApplied = currentState.lastAppliedAdaptation
         val restored = if (lastApplied != null && lastApplied.ruleId == plan.ruleId) {
-            var tempState = currentState
-            lastApplied.previousState.forEach { (key, value) ->
-                tempState = when (key) {
-                    "textScale" -> tempState.copy(textScale = value as Float)
-                    "highContrast" -> tempState.copy(highContrast = value as Boolean)
-                    "enlargedTouchTargets" -> tempState.copy(enlargedTouchTargets = value as Boolean)
-                    "increasedSpacing" -> tempState.copy(increasedSpacing = value as Boolean)
-                    "showIconLabels" -> tempState.copy(showIconLabels = value as Boolean)
-                    "contextualHelpVisible" -> tempState.copy(contextualHelpVisible = value as Boolean)
-                    "contextualHelpMessage" -> tempState.copy(contextualHelpMessage = (value as String).takeIf { it.isNotEmpty() })
-                    "guidedModeEnabled" -> tempState.copy(guidedModeEnabled = value as Boolean)
-                    "guidedStepMessage" -> tempState.copy(guidedStepMessage = (value as String).takeIf { it.isNotEmpty() })
-                    "reinforcedConfirmationVisible" -> tempState.copy(reinforcedConfirmationVisible = value as Boolean)
-                    "safeExitEnabled" -> tempState.copy(safeExitEnabled = value as Boolean)
-                    else -> tempState
-                }
-            }
-            tempState.copy(contextualHelpVisible = true, contextualHelpMessage = "Entendido. No volveré a mostrar esta sugerencia durante esta tarea.", undoMessageVisible = false, lastAppliedAdaptation = null)
+            val uim01 = lastApplied.previousState["uim01Level"] as? AdaptationLevel ?: AdaptationLevel.LEVEL_0_BASE
+            val uim02 = lastApplied.previousState["uim02Level"] as? AdaptationLevel ?: AdaptationLevel.LEVEL_0_BASE
+            val uim03 = lastApplied.previousState["uim03Level"] as? AdaptationLevel ?: AdaptationLevel.LEVEL_0_BASE
+            val uim04 = lastApplied.previousState["uim04Level"] as? AdaptationLevel ?: AdaptationLevel.LEVEL_0_BASE
+            currentState.copy(
+                uim01Level = uim01,
+                uim02Level = uim02,
+                uim03Level = uim03,
+                uim04Level = uim04,
+                contextualHelpVisibleOverride = true,
+                contextualHelpMessage = "Entendido. No volveré a mostrar esta sugerencia durante esta tarea.",
+                undoMessageVisible = false,
+                lastAppliedAdaptation = null
+            )
         } else {
-            currentState.copy(contextualHelpVisible = true, contextualHelpMessage = "Entendido. No volveré a mostrar esta sugerencia durante esta tarea.", undoMessageVisible = false, lastAppliedAdaptation = null)
+            currentState.copy(
+                contextualHelpVisibleOverride = true,
+                contextualHelpMessage = "Entendido. No volveré a mostrar esta sugerencia durante esta tarea.",
+                undoMessageVisible = false,
+                lastAppliedAdaptation = null
+            )
         }
         return restored
     }
@@ -258,15 +279,44 @@ class ExtendedMapeKCoordinator(
     fun process(event: AdaptiveInteractionEvent, taskState: TaskInteractionState, currentState: AdaptiveUiState): AdaptationEngineResult {
         monitor.recordEvent(event)
         val signals = monitor.evaluateSignals(taskState)
+        
+        // Log evaluated signals using Log.i
+        android.util.Log.i("AURA_MAPEK", "MONITOR | Signals evaluated: $signals for task=${taskState.taskId} screen=${taskState.screenId}")
+        
         val knowledge = knowledgeRepository.snapshot(taskState.taskId, taskState.screenId)
         val difficulties = analyzer.inferDifficulties(signals, taskState, knowledge)
-        val plan = planner.createPlan(difficulties, signals, taskState, knowledge, event) ?: return AdaptationEngineResult.NoAdaptation
+        
+        // Log inferred difficulties using Log.i
+        if (difficulties.isNotEmpty()) {
+            android.util.Log.i("AURA_MAPEK", "ANALYZER | Inferred difficulties: $difficulties")
+        }
+
+        val plan = try {
+            planner.createPlan(difficulties, signals, taskState, knowledge, event, currentState)
+        } catch (e: MaxLevelReachedException) {
+            return AdaptationEngineResult.Suppressed(e.ruleId, "MAX_LEVEL_REACHED", AdaptationLevel.LEVEL_3_HIGH_SUPPORT)
+        }
+        if (plan == null) {
+            return AdaptationEngineResult.NoAdaptation
+        }
+        
+        // Log proposed plan using Log.i
+        android.util.Log.i("AURA_MAPEK", "PLANNER | Proposed plan: rule=${plan.ruleId} targetLevel=${plan.targetLevel} modifications=${plan.modifications}")
+
         val controlled = controller.validatePlan(plan, taskState, knowledge)
-        if (!controlled.canShow) return AdaptationEngineResult.NoAdaptation
+        
+        // Log safety validation result using Log.i
+        android.util.Log.i("AURA_MAPEK", "CONTROLLER | Validation result: ${controlled.result} canShow=${controlled.canShow} reason=${controlled.reason ?: "Approved"}")
+
+        if (!controlled.canShow) return AdaptationEngineResult.Suppressed(plan.ruleId, controlled.reason ?: "SUPPRESSED", plan.targetLevel)
         val activePlan = controlled.plan
         return when (activePlan.validationType) {
-            ValidationType.NON_INTRUSIVE, ValidationType.DIRECT -> AdaptationEngineResult.Applied(executor.apply(activePlan, currentState), activePlan)
+            ValidationType.NON_INTRUSIVE, ValidationType.DIRECT -> {
+                android.util.Log.i("AURA_MAPEK", "EXECUTOR | Applying plan directly (DIRECT/NON_INTRUSIVE)")
+                AdaptationEngineResult.Applied(executor.apply(activePlan, currentState), activePlan)
+            }
             ValidationType.SUGGESTED, ValidationType.EXPLICIT -> {
+                android.util.Log.i("AURA_MAPEK", "EXECUTOR | Requesting user validation (SUGGESTED/EXPLICIT)")
                 val pending = PendingAdaptation(activePlan.ruleId, activePlan.title, activePlan.message, activePlan.modifications, activePlan.validationType, activePlan.reviewSummary)
                 AdaptationEngineResult.RequiresUserValidation(currentState.copy(pendingAdaptation = pending), activePlan)
             }
@@ -275,19 +325,59 @@ class ExtendedMapeKCoordinator(
     }
     fun apply(plan: AdaptationPlan, currentState: AdaptiveUiState) = executor.apply(plan, currentState)
     fun undo(plan: AdaptationPlan, currentState: AdaptiveUiState) = executor.undo(plan, currentState)
-    fun reject(plan: AdaptationPlan) = knowledgeRepository.rememberRejected(plan.taskId, plan.ruleId)
+    fun reject(plan: AdaptationPlan) = knowledgeRepository.rememberRejected(plan.taskId, plan.ruleId, plan.targetLevel)
 }
 
-private fun AdaptationRuleId.toPlan(signals: List<ObservedInteractionSignal>, difficulties: List<InferredDifficulty>, taskId: TaskId?, screenId: ScreenId?, reviewSummary: com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.ReviewSummary? = null): AdaptationPlan {
+private fun AdaptationRuleId.toPlan(
+    signals: List<ObservedInteractionSignal>,
+    difficulties: List<InferredDifficulty>,
+    taskId: TaskId?,
+    screenId: ScreenId?,
+    targetLevel: AdaptationLevel,
+    reviewSummary: com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.ReviewSummary? = null
+): AdaptationPlan {
     val id = "evt_" + UUID.randomUUID().toString()
     return when (this) {
-        AdaptationRuleId.AR01 -> AdaptationPlan(id, this, signals, difficulties, listOf(UiModification.UIM03_TOUCH_TARGETS, UiModification.UIM04_SPACING), ValidationType.SUGGESTED, "Facilitar los toques", "Puedo hacer los botones más grandes y separados para reducir toques accidentales.", taskId, screenId)
-        AdaptationRuleId.AR02 -> AdaptationPlan(id, this, signals, difficulties, listOf(UiModification.UIM01_TEXT_SIZE, UiModification.UIM02_CONTRAST, UiModification.UIM06_CONTEXTUAL_HELP, UiModification.UIM09_VISUAL_FEEDBACK), ValidationType.NON_INTRUSIVE, "Siguiente paso sugerido", "Aumenté el texto y el contraste. Siguiente paso: revise la información principal y toque el botón para continuar.", taskId, screenId)
-        AdaptationRuleId.AR03 -> AdaptationPlan(id, this, signals, difficulties, listOf(UiModification.UIM08_REINFORCED_CONFIRMATION, UiModification.UIM10_SAFE_EXIT, UiModification.UIM06_CONTEXTUAL_HELP), ValidationType.EXPLICIT, "Revisar antes de guardar", "Antes de guardar, revise el resumen.", taskId, screenId, reviewSummary)
-        AdaptationRuleId.AR04 -> AdaptationPlan(id, this, signals, difficulties, listOf(UiModification.UIM05_ICONS_LABELS, UiModification.UIM07_GUIDED_NAVIGATION, UiModification.UIM09_VISUAL_FEEDBACK), ValidationType.SUGGESTED, "Activar guía paso a paso", "Puedo mostrar etiquetas y una guía para completar esta tarea paso a paso.", taskId, screenId)
-        AdaptationRuleId.AR05 -> AdaptationPlan(id, this, signals, difficulties, listOf(UiModification.UIM05_ICONS_LABELS, UiModification.UIM06_CONTEXTUAL_HELP), ValidationType.DIRECT, "Ayuda disponible", "Esta pantalla usa datos ficticios. Revise el dato solicitado, complete el control principal y use Volver o Cancelar si necesita corregir.", taskId, screenId)
-        AdaptationRuleId.AR06 -> AdaptationPlan(id, this, signals, difficulties, listOf(UiModification.UIM09_VISUAL_FEEDBACK, UiModification.UIM10_SAFE_EXIT), ValidationType.DIRECT, "Revise el campo", "Ingrese un número entre 1 y 10.", taskId, screenId)
-        AdaptationRuleId.AR07 -> AdaptationPlan(id, this, signals, difficulties, emptyList(), ValidationType.NOT_APPLICABLE, "Preferencia guardada", "Entendido.", taskId, screenId)
-        AdaptationRuleId.AR08 -> AdaptationPlan(id, this, signals, difficulties, listOf(UiModification.UIM08_REINFORCED_CONFIRMATION, UiModification.UIM10_SAFE_EXIT), ValidationType.EXPLICIT, "Revisar antes de continuar", "Está por guardar información simulada.", taskId, screenId, reviewSummary)
+        AdaptationRuleId.AR01_TIME_ON_SCREEN -> {
+            val (title, msg) = when (targetLevel) {
+                AdaptationLevel.LEVEL_1_LIGHT_SUPPORT -> Pair("Aumentar texto", "¿Desea aumentar ligeramente el tamaño del texto para leer mejor?")
+                AdaptationLevel.LEVEL_2_MODERATE_SUPPORT -> Pair("Ajustar contraste y texto", "¿Desea aplicar letras más grandes y contraste alto para facilitar la lectura?")
+                else -> Pair("Simplificar botones y espaciado", "¿Desea usar botones más grandes, mayor separación y texto máximo?")
+            }
+            AdaptationPlan(id, this, signals, difficulties, listOf(UiModification.UIM01_TEXT, UiModification.UIM02_CONTEXTUAL_HELP_STEP_BY_STEP), ValidationType.NON_INTRUSIVE, title, msg, taskId, screenId, reviewSummary, targetLevel)
+        }
+        AdaptationRuleId.AR02_BACKTRACKING -> {
+            val (title, msg) = when (targetLevel) {
+                AdaptationLevel.LEVEL_1_LIGHT_SUPPORT -> Pair("Mostrar etiquetas de navegación", "¿Desea mostrar etiquetas de texto debajo de los íconos de navegación?")
+                AdaptationLevel.LEVEL_2_MODERATE_SUPPORT -> Pair("Activar ayuda en pantalla", "¿Desea ver un panel de ayuda con explicaciones sobre esta pantalla?")
+                else -> Pair("Activar guía paso a paso", "¿Desea que le guíe paso a paso en esta tarea?")
+            }
+            AdaptationPlan(id, this, signals, difficulties, listOf(UiModification.UIM02_CONTEXTUAL_HELP_STEP_BY_STEP), ValidationType.SUGGESTED, title, msg, taskId, screenId, reviewSummary, targetLevel)
+        }
+        AdaptationRuleId.AR03_HELP_REQUEST -> {
+            val msg = when (targetLevel) {
+                AdaptationLevel.LEVEL_1_LIGHT_SUPPORT -> "He activado etiquetas descriptivas debajo de los íconos."
+                AdaptationLevel.LEVEL_2_MODERATE_SUPPORT -> "He abierto el panel de ayuda contextual para esta tarea."
+                else -> "He activado el asistente paso a paso para guiarle."
+            }
+            AdaptationPlan(id, this, signals, difficulties, listOf(UiModification.UIM02_CONTEXTUAL_HELP_STEP_BY_STEP), ValidationType.DIRECT, "Ayuda disponible", msg, taskId, screenId, reviewSummary, targetLevel)
+        }
+        AdaptationRuleId.AR04_FIELD_ERROR -> {
+            val msg = when (targetLevel) {
+                AdaptationLevel.LEVEL_1_LIGHT_SUPPORT -> "Revise el campo resaltado; asegúrese de ingresar el formato correcto."
+                AdaptationLevel.LEVEL_2_MODERATE_SUPPORT -> "Ejemplo: Ingrese un número o el texto según el formato solicitado en pantalla."
+                else -> "He resaltado el campo y activado la ayuda persistente para corregir el dato."
+            }
+            AdaptationPlan(id, this, signals, difficulties, listOf(UiModification.UIM04_VISUAL_FEEDBACK), ValidationType.DIRECT, "Revise el campo", msg, taskId, screenId, reviewSummary, targetLevel)
+        }
+        AdaptationRuleId.AR05_CONFIRMATION_PAUSE -> {
+            val title = if (taskId != TaskId.T5_SUMMARY || reviewSummary != null) "Revisar antes de continuar" else "Revisar antes de guardar"
+            val msg = when (targetLevel) {
+                AdaptationLevel.LEVEL_1_LIGHT_SUPPORT -> "Antes de continuar, asegúrese de revisar la información ingresada."
+                AdaptationLevel.LEVEL_2_MODERATE_SUPPORT -> "Por favor, revise este resumen de sus datos antes de guardar."
+                else -> "Por favor, confirme cada uno de los siguientes datos ficticios para finalizar la tarea."
+            }
+            AdaptationPlan(id, this, signals, difficulties, listOf(UiModification.UIM03_REINFORCED_CONFIRMATION), ValidationType.EXPLICIT, title, msg, taskId, screenId, reviewSummary, targetLevel)
+        }
     }
 }

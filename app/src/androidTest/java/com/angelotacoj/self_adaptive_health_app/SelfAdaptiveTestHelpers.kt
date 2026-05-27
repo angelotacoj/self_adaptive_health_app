@@ -40,25 +40,21 @@ fun MainComposeRule.clearActiveSessionBeforeActivityDestroy() {
     runCatching {
         runBlocking {
             AppContainer.experimentPreferences.clearActiveSessionPreferences()
+            AppContainer.database.experimentDao().clearAll()
         }
-        waitUntil(timeoutMillis = 5_000) {
-            onAllNodesWithText("Configuración del experimento").fetchSemanticsNodes().isNotEmpty() ||
-                runCatching { onNodeWithTag("participant_suffix_input").fetchSemanticsNode() }.isSuccess
-        }
-        waitForIdle()
     }
 }
 
-fun MainComposeRule.startGroupBSession(participantCode: String): String {
-    return startSession(participantCode, groupTag = "group_b_option")
+fun MainComposeRule.startGroupBSession(participantId: String): String {
+    return startSession(participantId, groupTag = "group_b_option")
 }
 
-fun MainComposeRule.startGroupASession(participantCode: String): String {
-    return startSession(participantCode, groupTag = "group_a_option")
+fun MainComposeRule.startGroupASession(participantId: String): String {
+    return startSession(participantId, groupTag = "group_a_option")
 }
 
-private fun MainComposeRule.startSession(participantCodeSeed: String, groupTag: String): String {
-    val suffix = participantCodeSeed.toFourDigitSuffix()
+private fun MainComposeRule.startSession(participantIdSeed: String, groupTag: String): String {
+    val suffix = participantIdSeed.toFourDigitSuffix()
     onNodeWithTag("participant_suffix_input").performTextClearance()
     onNodeWithTag("participant_suffix_input").performTextInput(suffix)
     onNodeWithTag(groupTag).performScrollTo().performClick()
@@ -67,16 +63,17 @@ private fun MainComposeRule.startSession(participantCodeSeed: String, groupTag: 
     }
     onNodeWithTag("continue_button").performScrollTo().performClick()
     completeInitialProfileIfPresent()
-    onNodeWithText("Etapa 1").assertExistsCompat()
+    waitUntil(timeoutMillis = 8_000) {
+        onAllNodesWithText("Etapa 1").fetchSemanticsNodes().isNotEmpty()
+    }
     return "P01-$suffix"
 }
 
 private fun MainComposeRule.completeInitialProfileIfPresent() {
     waitForIdle()
-    val profileVisible = runCatching {
-        onAllNodesWithText("Perfil inicial").fetchSemanticsNodes().isNotEmpty()
-    }.getOrDefault(false)
-    if (!profileVisible) return
+    waitUntil(timeoutMillis = 8_000) {
+        onAllNodesWithText("Perfil inicial", substring = true).fetchSemanticsNodes().isNotEmpty()
+    }
 
     listOf(
         "profile_question_1_yes",

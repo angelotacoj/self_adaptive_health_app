@@ -16,7 +16,7 @@ private val Context.experimentDataStore by preferencesDataStore(name = "experime
 
 data class SessionPreferenceSnapshot(
     val currentSessionId: String? = null,
-    val participantCode: String? = null,
+    val participantId: String? = null,
     val group: String? = null,
     val currentCondition: String? = null,
     val currentConditionIndex: Int = 0,
@@ -29,7 +29,7 @@ class ExperimentPreferences(private val context: Context) {
     val sessionSnapshot: Flow<SessionPreferenceSnapshot> = context.experimentDataStore.data.map { prefs ->
         SessionPreferenceSnapshot(
             currentSessionId = prefs[CURRENT_SESSION_ID],
-            participantCode = prefs[PARTICIPANT_CODE],
+            participantId = prefs[PARTICIPANT_CODE],
             group = prefs[GROUP],
             currentCondition = prefs[CURRENT_CONDITION],
             currentConditionIndex = prefs[CURRENT_CONDITION_INDEX] ?: 0,
@@ -42,7 +42,7 @@ class ExperimentPreferences(private val context: Context) {
     suspend fun saveSession(state: ExperimentSessionState) {
         context.experimentDataStore.edit { prefs ->
             prefs[CURRENT_SESSION_ID] = state.sessionId
-            prefs[PARTICIPANT_CODE] = state.participantCode
+            prefs[PARTICIPANT_CODE] = state.participantId
             prefs[GROUP] = state.group.name
             prefs[CURRENT_CONDITION] = state.currentCondition.name
             prefs[CURRENT_CONDITION_INDEX] = state.currentConditionIndex

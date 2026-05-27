@@ -36,7 +36,7 @@ class ExperimentDaoTest {
     fun `insert and get session`() = runTest {
         val session = ParticipantSessionEntity(
             sessionId = "S001",
-            participantCode = "P001",
+            participantId = "P001",
             group = "GroupA",
             conditionOrder = "STATIC,ADAPTIVE",
             startedAt = 1000L,
@@ -47,7 +47,7 @@ class ExperimentDaoTest {
 
         val retrieved = dao.getSessionById("S001")
         assertNotNull(retrieved)
-        assertEquals("P001", retrieved?.participantCode)
+        assertEquals("P001", retrieved?.participantId)
     }
 
     @Test
@@ -55,7 +55,7 @@ class ExperimentDaoTest {
         val event = InteractionEventEntity(
             eventId = "E001",
             sessionId = "S001",
-            participantCode = "P001",
+            participantId = "P001",
             condition = "STATIC",
             taskId = "T1",
             screenId = "S1",
@@ -80,7 +80,7 @@ class ExperimentDaoTest {
         val taskRun = TaskRunEntity(
             taskRunId = "TR001",
             sessionId = "S001",
-            participantCode = "P001",
+            participantId = "P001",
             condition = "STATIC",
             taskId = "T1",
             dataSet = "SET_A",

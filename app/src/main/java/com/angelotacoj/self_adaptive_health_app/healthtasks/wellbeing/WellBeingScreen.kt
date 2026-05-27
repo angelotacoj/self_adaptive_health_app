@@ -42,9 +42,9 @@ fun WellBeingScreen(
         if (onAction(WellBeingAction.BackClicked) is WellBeingEvent.ExitTask) onExit()
     }
     LaunchedEffect(screenId) {
-        onLog(InteractionEventType.SCREEN_ENTERED, screenId, "Well-being step entered: $screenId.")
-        if (AdaptiveTiming.prolongedTimeDetectionEnabled && state.step != WellBeingStep.Intro) {
-            delay(AdaptiveTiming.THRESHOLD_MEDIUM)
+        onLog(InteractionEventType.SCREEN_ENTERED, screenId, "WellBeing step entered: $screenId.")
+        if (AdaptiveTiming.prolongedTimeDetectionEnabled) {
+            delay(AdaptiveTiming.getThresholdForScreen(screenId))
             onAdaptiveEvent(AdaptiveInteractionEventType.PROLONGED_TIME, screenId)
         }
     }

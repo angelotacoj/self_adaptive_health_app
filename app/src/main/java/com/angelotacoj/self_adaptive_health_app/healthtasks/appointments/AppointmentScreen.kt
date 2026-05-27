@@ -43,8 +43,8 @@ fun AppointmentScreen(
     }
     LaunchedEffect(screenId) {
         onLog(InteractionEventType.SCREEN_ENTERED, screenId, "Appointment step entered: $screenId.")
-        if (AdaptiveTiming.prolongedTimeDetectionEnabled && state.step != AppointmentStep.Overview) {
-            delay(AdaptiveTiming.THRESHOLD_MEDIUM)
+        if (AdaptiveTiming.prolongedTimeDetectionEnabled) {
+            delay(AdaptiveTiming.getThresholdForScreen(screenId))
             onAdaptiveEvent(AdaptiveInteractionEventType.PROLONGED_TIME, screenId)
         }
     }

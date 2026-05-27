@@ -48,13 +48,13 @@ class ExperimentPreferencesTest {
     fun `initial snapshot is empty`() = runTest {
         val snapshot = preferences.sessionSnapshot.first()
         assertFalse(snapshot.isSessionActive)
-        assertEquals(null, snapshot.participantCode)
+        assertEquals(null, snapshot.participantId)
     }
 
     @Test
     fun `saveSession updates snapshot`() = runTest {
         val state = ExperimentSessionState(
-            participantCode = "P001",
+            participantId = "P001",
             group = ExperimentGroup.GroupA,
             conditionOrder = ExperimentGroup.GroupA.conditionOrder(),
             currentDataSet = dataSet,
@@ -65,7 +65,7 @@ class ExperimentPreferencesTest {
 
         val snapshot = preferences.sessionSnapshot.first()
         assertTrue(snapshot.isSessionActive)
-        assertEquals("P001", snapshot.participantCode)
+        assertEquals("P001", snapshot.participantId)
         assertEquals("GroupA", snapshot.group)
         assertEquals("STATIC_UI", snapshot.currentCondition)
         assertEquals("SET_A", snapshot.currentDataSet)
@@ -74,7 +74,7 @@ class ExperimentPreferencesTest {
     @Test
     fun `clearSession resets snapshot`() = runTest {
         val state = ExperimentSessionState(
-            participantCode = "P001",
+            participantId = "P001",
             group = ExperimentGroup.GroupA,
             conditionOrder = ExperimentGroup.GroupA.conditionOrder(),
             currentDataSet = dataSet,
@@ -87,6 +87,6 @@ class ExperimentPreferencesTest {
 
         val snapshot = preferences.sessionSnapshot.first()
         assertFalse(snapshot.isSessionActive)
-        assertEquals(null, snapshot.participantCode)
+        assertEquals(null, snapshot.participantId)
     }
 }

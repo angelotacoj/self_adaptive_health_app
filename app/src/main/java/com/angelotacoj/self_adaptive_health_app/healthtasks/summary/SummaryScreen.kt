@@ -41,14 +41,14 @@ fun SummaryScreen(
     LaunchedEffect(screenId) {
         onLog(InteractionEventType.SCREEN_ENTERED, screenId, "Summary step entered: $screenId.")
         if (AdaptiveTiming.prolongedTimeDetectionEnabled && state.step != SummaryStep.Intro) {
-            delay(AdaptiveTiming.THRESHOLD_SHORT)
+            delay(AdaptiveTiming.getThresholdForScreen(screenId))
             onAdaptiveEvent(AdaptiveInteractionEventType.PROLONGED_TIME, screenId, null)
         }
     }
     if (state.step == SummaryStep.ReinforcedConfirmation) {
         LaunchedEffect(screenId) {
-            delay(12_000)
-            onLog(InteractionEventType.CONFIRMATION_PAUSE, screenId, "Confirmation pause reached 12 seconds.")
+            delay(AdaptiveTiming.getConfirmationPauseThreshold())
+            onLog(InteractionEventType.CONFIRMATION_PAUSE, screenId, "Confirmation pause reached.")
             onAdaptiveEvent(AdaptiveInteractionEventType.CONFIRMATION_PAUSE, screenId, null)
         }
     }

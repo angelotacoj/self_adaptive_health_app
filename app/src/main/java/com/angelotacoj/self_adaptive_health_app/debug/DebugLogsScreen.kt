@@ -123,39 +123,41 @@ fun DebugLogsScreen(
         navigationLabel = "Volver",
         onNavigationClick = onBack
     ) {
-        ResearcherSectionCard(if (session != null) "Resumen de sesión actual" else "Alcance del panel") {
-            Text(text = if (session != null) "Modo: sesión actual filtrada por participante activo" else "Modo: histórico global del dispositivo")
-            Text(text = "Participante: ${session?.participantCode ?: "Ninguno"}")
-            Text(text = "Session ID: ${session?.sessionId ?: "No aplica"}")
-            Text(text = "Grupo: ${session?.group?.label ?: "Ninguno"}")
-            Text(text = "Condición actual: ${session?.currentCondition ?: "Ninguna"}")
-                        Text(text = "Estado: ${if (session?.isSessionActive == true) "Activa" else "Completada/Cancelada"}")
-            Text(text = "Perfil completado: ${if (session?.isProfileCompleted == true) "Sí" else "No"}")
-            Text(text = "Total completado: ${session?.completedTaskCount() ?: 0}/${session?.totalRequiredTaskRuns() ?: 0}")
-        }
-
-        
-        ResearcherSectionCard("Resumen del perfil inicial") {
-            if (profile != null) {
-                Text("Textos grandes: ${profile!!.prefersLargeText}")
-                Text("Botones grandes: ${profile!!.prefersLargeButtons}")
-                Text("Etiquetas de iconos: ${profile!!.prefersIconLabels}")
-                Text("Guía paso a paso: ${profile!!.prefersGuidedSteps}")
-                Text("Confirmaciones: ${profile!!.prefersConfirmations}")
-                Text("Comodidad móvil: ${profile!!.mobileComfortLevel}")
-                Text("Ejemplos de errores: ${profile!!.prefersErrorExamples}")
-                Text("Aviso de adaptación: ${profile!!.prefersAdaptationPrompt}")
-            } else {
-                Text("No hay perfil registrado para esta sesión.")
+        if (session != null){
+            ResearcherSectionCard(if (session != null) "Resumen de sesión actual" else "Alcance del panel") {
+                Text(text = if (session != null) "Modo: sesión actual filtrada por participante activo" else "Modo: histórico global del dispositivo")
+                Text(text = "Participante: ${session?.participantId ?: "Ninguno"}")
+                Text(text = "Session ID: ${session?.sessionId ?: "No aplica"}")
+                Text(text = "Grupo: ${session?.group?.label ?: "Ninguno"}")
+                Text(text = "Condición actual: ${session?.currentCondition ?: "Ninguna"}")
+                Text(text = "Estado: ${if (session?.isSessionActive == true) "Activa" else "Completada/Cancelada"}")
+                Text(text = "Perfil completado: ${if (session?.isProfileCompleted == true) "Sí" else "No"}")
+                Text(text = "Total completado: ${session?.completedTaskCount() ?: 0}/${session?.totalRequiredTaskRuns() ?: 0}")
             }
-        }
 
-        ResearcherSectionCard("Resumen de adaptaciones (Aplicadas)") {
-            if (adaptationSummary.isEmpty()) {
-                Text("Ninguna adaptación aplicada.")
-            } else {
-                adaptationSummary.forEach { (rule, count) ->
-                    Text("$rule: $count vez/veces")
+
+            ResearcherSectionCard("Resumen del perfil inicial") {
+                if (profile != null) {
+                    Text("Textos grandes: ${profile!!.prefersLargeText}")
+                    Text("Botones grandes: ${profile!!.prefersLargeButtons}")
+                    Text("Etiquetas de iconos: ${profile!!.prefersIconLabels}")
+                    Text("Guía paso a paso: ${profile!!.prefersGuidedSteps}")
+                    Text("Confirmaciones: ${profile!!.prefersConfirmations}")
+                    Text("Comodidad móvil: ${profile!!.mobileComfortLevel}")
+                    Text("Ejemplos de errores: ${profile!!.prefersErrorExamples}")
+                    Text("Aviso de adaptación: ${profile!!.prefersAdaptationPrompt}")
+                } else {
+                    Text("No hay perfil registrado para esta sesión.")
+                }
+            }
+
+            ResearcherSectionCard("Resumen de adaptaciones (Aplicadas)") {
+                if (adaptationSummary.isEmpty()) {
+                    Text("Ninguna adaptación aplicada.")
+                } else {
+                    adaptationSummary.forEach { (rule, count) ->
+                        Text("$rule: $count vez/veces")
+                    }
                 }
             }
         }
@@ -164,9 +166,11 @@ fun DebugLogsScreen(
             Text(text = counts)
         }
 
-        ResearcherSectionCard("Estado de tareas por condición") {
-            ConditionTaskStatus("STATIC_UI", session, ExperimentCondition.STATIC_UI)
-            ConditionTaskStatus("SELF_ADAPTIVE_UI", session, ExperimentCondition.SELF_ADAPTIVE_UI)
+        if (session != null){
+            ResearcherSectionCard("Estado de tareas por condición") {
+                ConditionTaskStatus("STATIC_UI", session, ExperimentCondition.STATIC_UI)
+                ConditionTaskStatus("SELF_ADAPTIVE_UI", session, ExperimentCondition.SELF_ADAPTIVE_UI)
+            }
         }
 
         if (logs.isEmpty() && roomRows.isEmpty()) {

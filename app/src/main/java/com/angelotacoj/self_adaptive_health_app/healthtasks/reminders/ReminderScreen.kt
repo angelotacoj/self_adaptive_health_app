@@ -41,7 +41,7 @@ fun ReminderScreen(
     LaunchedEffect(screenId) {
         onLog(InteractionEventType.SCREEN_ENTERED, screenId, "Reminder step entered: $screenId.")
         if (AdaptiveTiming.prolongedTimeDetectionEnabled && state.step != ReminderStep.Intro) {
-            delay(AdaptiveTiming.THRESHOLD_LONG)
+            delay(AdaptiveTiming.getThresholdForScreen(screenId))
             onAdaptiveEvent(AdaptiveInteractionEventType.PROLONGED_TIME, screenId)
         }
     }

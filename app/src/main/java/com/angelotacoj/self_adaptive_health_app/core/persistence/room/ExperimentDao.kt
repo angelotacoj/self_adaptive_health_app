@@ -13,18 +13,18 @@ interface ExperimentDao {
     @Query("SELECT * FROM participant_sessions WHERE sessionId = :sessionId LIMIT 1")
     suspend fun getSessionById(sessionId: String): ParticipantSessionEntity?
 
-    @Query("SELECT * FROM participant_sessions WHERE participantCode = :participantCode ORDER BY startedAt DESC")
-    suspend fun getSessionByParticipantCode(participantCode: String): List<ParticipantSessionEntity>
+    @Query("SELECT * FROM participant_sessions WHERE participantId = :participantId ORDER BY startedAt DESC")
+    suspend fun getSessionByParticipantCode(participantId: String): List<ParticipantSessionEntity>
 
     @Query(
-        "SELECT MAX(CAST(SUBSTR(participantCode, 2, INSTR(participantCode, '-') - 2) AS INTEGER)) " +
+        "SELECT MAX(CAST(SUBSTR(participantId, 2, INSTR(participantId, '-') - 2) AS INTEGER)) " +
             "FROM participant_sessions " +
-            "WHERE participantCode GLOB 'P[0-9][0-9]-*' OR participantCode GLOB 'P[0-9][0-9][0-9]*-*'"
+            "WHERE participantId GLOB 'P[0-9][0-9]-*' OR participantId GLOB 'P[0-9][0-9][0-9]*-*'"
     )
     suspend fun getMaxParticipantSequence(): Int?
 
-    @Query("SELECT EXISTS(SELECT 1 FROM participant_sessions WHERE participantCode = :code)")
-    suspend fun participantCodeExists(code: String): Boolean
+    @Query("SELECT EXISTS(SELECT 1 FROM participant_sessions WHERE participantId = :code)")
+    suspend fun participantIdExists(code: String): Boolean
 
     @Query("SELECT * FROM participant_sessions WHERE isCompleted = 0 ORDER BY startedAt DESC LIMIT 1")
     suspend fun getActiveSession(): ParticipantSessionEntity?
@@ -140,11 +140,14 @@ interface ExperimentDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAdaptationPreference(entity: AdaptationPreferenceEntity)
 
-    @Query("SELECT * FROM adaptation_preferences WHERE ruleId = :ruleId AND taskId = :taskId AND screenId = :screenId LIMIT 1")
-    suspend fun getAdaptationPreference(ruleId: String, taskId: String, screenId: String): AdaptationPreferenceEntity?
+    @Query("SELECT * FROM adaptation_preferences WHERE ruleId = :ruleId AND targetLevel = :targetLevel AND scope = :scope AND taskId = :taskId LIMIT 1")
+    suspend fun getAdaptationPreference(ruleId: String, targetLevel: Int, scope: String, taskId: String?): AdaptationPreferenceEntity?
 
-    @Query("SELECT * FROM adaptation_preferences WHERE taskId = :taskId")
-    suspend fun getPreferencesForTask(taskId: String): List<AdaptationPreferenceEntity>
+    @Query("SELECT COUNT(DISTINCT taskId) FROM adaptation_preferences WHERE ruleId = :ruleId AND targetLevel = :targetLevel AND scope = 'TASK'")
+    suspend fun countDistinctTasksForRejection(ruleId: String, targetLevel: Int): Int
+
+    @Query("SELECT * FROM adaptation_preferences WHERE taskId = :taskId OR scope = 'SESSION' OR scope = 'GLOBAL'")
+    suspend fun getActivePreferences(taskId: String): List<AdaptationPreferenceEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTaskState(entity: TaskStateEntity)

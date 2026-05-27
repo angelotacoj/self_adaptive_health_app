@@ -261,16 +261,10 @@ fun UndoAdaptationCard(
 
 private fun UiModification.description(): String {
     return when (this) {
-        UiModification.UIM01_TEXT_SIZE -> "Se aumentó el tamaño del texto para mejorar la lectura."
-        UiModification.UIM02_CONTRAST -> "Se reforzó el contraste para distinguir mejor la información importante."
-        UiModification.UIM03_TOUCH_TARGETS -> "Se ampliaron las áreas táctiles de los controles."
-        UiModification.UIM04_SPACING -> "Se aumentó el espacio entre elementos para reducir toques accidentales."
-        UiModification.UIM05_ICONS_LABELS -> "Se reforzaron etiquetas e indicadores visuales."
-        UiModification.UIM06_CONTEXTUAL_HELP -> "Se mostró ayuda contextual relacionada con la pantalla actual."
-        UiModification.UIM07_GUIDED_NAVIGATION -> "Se activó una guía paso a paso para orientar la navegación."
-        UiModification.UIM08_REINFORCED_CONFIRMATION -> "Se agregó una confirmación reforzada antes de continuar."
-        UiModification.UIM09_VISUAL_FEEDBACK -> "Se mostró retroalimentación visual sobre el siguiente paso o el resultado."
-        UiModification.UIM10_SAFE_EXIT -> "Se mantuvieron opciones claras para volver, cancelar o corregir."
+        UiModification.UIM01_TEXT -> "Se aumentó el tamaño del texto para mejorar la lectura."
+        UiModification.UIM02_CONTEXTUAL_HELP_STEP_BY_STEP -> "Se activó una ayuda contextual para guiar la navegación."
+        UiModification.UIM03_REINFORCED_CONFIRMATION -> "Se agregó una confirmación reforzada antes de continuar."
+        UiModification.UIM04_VISUAL_FEEDBACK -> "Se mostró retroalimentación visual sobre el siguiente paso o el resultado."
     }
 }
 

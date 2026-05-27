@@ -1,5 +1,6 @@
 package com.angelotacoj.self_adaptive_health_app.adaptive.domain.repository
 
+import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.AdaptationLevel
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.AdaptationRuleId
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.KnowledgeSnapshot
 import com.angelotacoj.self_adaptive_health_app.core.logging.DebugLogEntry
@@ -13,8 +14,8 @@ import com.angelotacoj.self_adaptive_health_app.core.persistence.room.UserDecisi
 interface KnowledgeRepository {
     suspend fun getCurrentSession(): String?
     suspend fun getCurrentCondition(): String?
-    suspend fun wasRejectedInCurrentTask(taskId: TaskId?, ruleId: AdaptationRuleId): Boolean
-    fun rememberRejected(taskId: TaskId?, ruleId: AdaptationRuleId)
+    suspend fun wasRejectedInCurrentTask(taskId: TaskId?, ruleId: AdaptationRuleId, level: AdaptationLevel): Boolean
+    fun rememberRejected(taskId: TaskId?, ruleId: AdaptationRuleId, level: AdaptationLevel)
     fun rememberSuggested(taskId: TaskId?, ruleId: AdaptationRuleId)
     fun rememberModal(screenId: ScreenId?, ruleId: AdaptationRuleId)
     fun snapshot(taskId: TaskId?, screenId: ScreenId?): KnowledgeSnapshot
@@ -22,7 +23,7 @@ interface KnowledgeRepository {
     suspend fun saveAdaptationEvent(entity: AdaptationEventEntity)
     suspend fun saveUserDecision(entity: UserDecisionEventEntity)
     suspend fun clearCurrentSession()
-    fun clearTask(taskId: TaskId?)
+    suspend fun clearTask(taskId: TaskId?)
     fun clearCurrentTaskAdaptationMemory()
     suspend fun markUndone(adaptationEventId: String)
     suspend fun saveTaskState(entity: TaskStateEntity)
@@ -32,20 +33,27 @@ interface KnowledgeRepository {
 
 open class InMemoryKnowledgeRepository : KnowledgeRepository {
     protected val rejectedByTask = mutableMapOf<TaskId, MutableSet<AdaptationRuleId>>()
+    protected val rejectedLevelsByTask = mutableMapOf<TaskId, MutableSet<Pair<AdaptationRuleId, AdaptationLevel>>>()
     protected val suggestedCountByTask = mutableMapOf<TaskId, Int>()
     protected val modalShownByScreen = mutableMapOf<ScreenId, Boolean>()
     protected var lastRejectionAt: Long? = null
 
     override suspend fun getCurrentSession(): String? = null
     override suspend fun getCurrentCondition(): String? = null
-    override suspend fun wasRejectedInCurrentTask(taskId: TaskId?, ruleId: AdaptationRuleId): Boolean {
-        return taskId?.let { rejectedByTask[it]?.contains(ruleId) } ?: false
+    
+    override suspend fun wasRejectedInCurrentTask(taskId: TaskId?, ruleId: AdaptationRuleId, level: AdaptationLevel): Boolean {
+        val rejectedLevels = taskId?.let { rejectedLevelsByTask[it] } ?: return false
+        return Pair(ruleId, level) in rejectedLevels
     }
 
-    override fun rememberRejected(taskId: TaskId?, ruleId: AdaptationRuleId) {
+    override fun rememberRejected(taskId: TaskId?, ruleId: AdaptationRuleId, level: AdaptationLevel) {
         if (taskId != null) {
             val rules = rejectedByTask.getOrPut(taskId) { mutableSetOf() }
             rules.add(ruleId)
+            
+            val levels = rejectedLevelsByTask.getOrPut(taskId) { mutableSetOf() }
+            levels.add(Pair(ruleId, level))
+            
             lastRejectionAt = System.currentTimeMillis()
         }
     }
@@ -67,7 +75,8 @@ open class InMemoryKnowledgeRepository : KnowledgeRepository {
             rejectedRulesForTask = taskId?.let { rejectedByTask[it]?.toSet() } ?: emptySet(),
             suggestionsShownForTask = taskId?.let { suggestedCountByTask[it] } ?: 0,
             modalShownForScreen = screenId?.let { modalShownByScreen[it] } ?: false,
-            lastRejectionAt = lastRejectionAt
+            lastRejectionAt = lastRejectionAt,
+            rejectedRuleLevelsForTask = taskId?.let { rejectedLevelsByTask[it]?.toSet() } ?: emptySet()
         )
     }
 
@@ -75,15 +84,17 @@ open class InMemoryKnowledgeRepository : KnowledgeRepository {
     override suspend fun saveAdaptationEvent(entity: AdaptationEventEntity) {}
     override suspend fun saveUserDecision(entity: UserDecisionEventEntity) {}
     override suspend fun clearCurrentSession() { clearCurrentTaskAdaptationMemory() }
-    override fun clearTask(taskId: TaskId?) {
+    override suspend fun clearTask(taskId: TaskId?) {
         if (taskId != null) {
             rejectedByTask.remove(taskId)
+            rejectedLevelsByTask.remove(taskId)
             suggestedCountByTask.remove(taskId)
         }
     }
 
     override fun clearCurrentTaskAdaptationMemory() {
         rejectedByTask.clear()
+        rejectedLevelsByTask.clear()
         suggestedCountByTask.clear()
         modalShownByScreen.clear()
         lastRejectionAt = null

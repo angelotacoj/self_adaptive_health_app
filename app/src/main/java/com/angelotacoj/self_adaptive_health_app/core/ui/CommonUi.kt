@@ -272,7 +272,7 @@ fun HeroHeaderCard(
 
 @Composable
 fun SessionInfoCard(
-    participantCode: String,
+    participantId: String,
     group: String,
     condition: String,
     dataSet: String,
@@ -281,7 +281,7 @@ fun SessionInfoCard(
     SummaryReviewCard(
         title = "Datos de la sesión",
         rows = listOf(
-            "Participante" to participantCode,
+            "Participante" to participantId,
             "Grupo" to group,
             "Condición" to condition,
         ),

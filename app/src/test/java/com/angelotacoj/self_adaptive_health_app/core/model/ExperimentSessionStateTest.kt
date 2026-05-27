@@ -33,7 +33,7 @@ class ExperimentSessionStateTest {
     fun completingSameTaskTwiceInSameConditionDoesNotIncreaseCount() {
         val dataSet = FakeHealthDataSource().getDataSet(ExperimentGroup.GroupA)
         var state = ExperimentSessionState(
-            participantCode = "UNIT_DUPLICATE",
+            participantId = "UNIT_DUPLICATE",
             group = ExperimentGroup.GroupA,
             conditionOrder = ExperimentGroup.GroupA.conditionOrder(),
             currentDataSet = dataSet
@@ -49,7 +49,7 @@ class ExperimentSessionStateTest {
     fun movingToSecondConditionKeepsNewConditionTasksPending() {
         val dataSet = FakeHealthDataSource().getDataSet(ExperimentGroup.GroupA)
         var state = ExperimentSessionState(
-            participantCode = "UNIT_SECOND_CONDITION",
+            participantId = "UNIT_SECOND_CONDITION",
             group = ExperimentGroup.GroupA,
             conditionOrder = ExperimentGroup.GroupA.conditionOrder(),
             currentDataSet = dataSet
@@ -69,7 +69,7 @@ class ExperimentSessionStateTest {
     fun task4IsAvailableInSelfAdaptiveAfterCompletingFirstThreeSelfAdaptiveTasks() {
         val dataSet = FakeHealthDataSource().getDataSet(ExperimentGroup.GroupA)
         var state = ExperimentSessionState(
-            participantCode = "UNIT_T4_AVAILABLE",
+            participantId = "UNIT_T4_AVAILABLE",
             group = ExperimentGroup.GroupA,
             conditionOrder = ExperimentGroup.GroupA.conditionOrder(),
             currentDataSet = dataSet
@@ -89,7 +89,7 @@ class ExperimentSessionStateTest {
     private fun completeTenTasks(group: ExperimentGroup): ExperimentSessionState {
         val dataSet = FakeHealthDataSource().getDataSet(group)
         var state = ExperimentSessionState(
-            participantCode = "UNIT_${group.name}",
+            participantId = "UNIT_${group.name}",
             group = group,
             conditionOrder = group.conditionOrder(),
             currentDataSet = dataSet

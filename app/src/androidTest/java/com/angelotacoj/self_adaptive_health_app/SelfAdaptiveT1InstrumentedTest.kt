@@ -39,7 +39,6 @@ class SelfAdaptiveT1InstrumentedTest {
         }
 
         composeRule.onNodeWithText("Cambio aplicado automáticamente").assertIsDisplayed()
-        composeRule.onNodeWithText("Ayuda del sistema").assertIsDisplayed()
 
         composeRule.onNodeWithText("Deshacer cambio").performScrollTo().performClick()
 

@@ -1,6 +1,7 @@
 package com.angelotacoj.self_adaptive_health_app.adaptive.domain.repository
 
 import com.angelotacoj.self_adaptive_health_app.MainDispatcherRule
+import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.AdaptationLevel
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.AdaptationRuleId
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.ExperimentCondition
 import com.angelotacoj.self_adaptive_health_app.core.logging.DebugLogEntry
@@ -38,7 +39,7 @@ class PersistentKnowledgeRepositoryTest {
     fun setup() {
         coEvery { preferences.sessionSnapshot } returns flowOf(
             SessionPreferenceSnapshot(
-                participantCode = "P001",
+                participantId = "P001",
                 currentDataSet = "SET_A",
                 currentCondition = "SELF_ADAPTIVE_UI",
                 isSessionActive = true
@@ -63,7 +64,7 @@ class PersistentKnowledgeRepositoryTest {
     fun `saveInteractionEvent calls dao with mapped entity`() = runTest {
         val entry = DebugLogEntry(
             id = "EVT001",
-            participantCode = "P001",
+            participantId = "P001",
             group = ExperimentGroup.GroupA,
             condition = ExperimentCondition.SELF_ADAPTIVE_UI,
             taskId = TaskId.T1_ACCESS,
@@ -79,7 +80,7 @@ class PersistentKnowledgeRepositoryTest {
             dao.insertInteractionEvent(match {
                 it.eventId == "EVT001" &&
                 it.sessionId == "P001_SET_A" &&
-                it.participantCode == "P001" &&
+                it.participantId == "P001" &&
                 it.condition == "SELF_ADAPTIVE_UI" &&
                 it.taskId == "T1_ACCESS" &&
                 it.screenId == "ACCESS_CODE" &&
@@ -95,11 +96,11 @@ class PersistentKnowledgeRepositoryTest {
         val entity = AdaptationEventEntity(
             adaptationEventId = "AD001",
             sessionId = "S001",
-            participantCode = "P001",
+            participantId = "P001",
             condition = "SELF_ADAPTIVE_UI",
             taskId = "T1",
             screenId = "S1",
-            ruleId = "AR01",
+            ruleId = "AR01_TIME_ON_SCREEN",
             inferredDifficulty = "D1",
             uiModifications = "M1",
             validationType = "V1",
@@ -121,7 +122,7 @@ class PersistentKnowledgeRepositoryTest {
             decisionId = "DEC001",
             adaptationEventId = "AD001",
             sessionId = "S001",
-            participantCode = "P001",
+            participantId = "P001",
             taskId = "T1",
             screenId = "S1",
             decision = "CONFIRM",
@@ -138,8 +139,8 @@ class PersistentKnowledgeRepositoryTest {
         coEvery { preferences.clearSession() } returns Unit
         
         // Populate in-memory memory
-        repository.rememberRejected(TaskId.T1_ACCESS, AdaptationRuleId.AR02)
-        assertTrue(repository.wasRejectedInCurrentTask(TaskId.T1_ACCESS, AdaptationRuleId.AR02))
+        repository.rememberRejected(TaskId.T1_ACCESS, AdaptationRuleId.AR01_TIME_ON_SCREEN, AdaptationLevel.LEVEL_1_LIGHT_SUPPORT)
+        assertTrue(repository.wasRejectedInCurrentTask(TaskId.T1_ACCESS, AdaptationRuleId.AR01_TIME_ON_SCREEN, AdaptationLevel.LEVEL_1_LIGHT_SUPPORT))
         
         repository.clearCurrentSession()
         

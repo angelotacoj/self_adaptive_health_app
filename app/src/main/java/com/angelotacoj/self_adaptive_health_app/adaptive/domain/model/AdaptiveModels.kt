@@ -9,46 +9,47 @@ enum class ExperimentCondition {
 }
 
 enum class ObservedInteractionSignal {
-    OIS01_TOUCH_ERRORS,
-    OIS02_PROLONGED_TIME,
-    OIS03_CONFIRMATION_PAUSE,
-    OIS04_BACKTRACKING,
-    OIS05_HELP_REQUEST,
-    OIS06_FIELD_ERROR,
-    OIS07_ADAPTATION_REJECTED,
-    OIS08_SENSITIVE_ACTION
+    OIS01_TIME_ON_SCREEN,
+    OIS02_BACKTRACKING,
+    OIS03_HELP_REQUEST,
+    OIS04_FIELD_ERROR,
+    OIS05_CONFIRMATION_PAUSE
 }
 
 enum class InferredDifficulty {
-    DI01_MOTOR_PRECISION,
-    DI02_VISUAL_OR_COGNITIVE,
-    DI03_FLOW_DISORIENTATION,
-    DI04_DOUBT_OR_NEED_FOR_CONTROL,
-    DI05_USER_PREFERENCE_OR_LOSS_OF_CONTROL
+    DI01_LEGIBILITY_DIFFICULTY,
+    DI02_COMPREHENSION_ORIENTATION_DIFFICULTY,
+    DI03_RECOVERY_UNCERTAINTY_DIFFICULTY,
+    DI04_CONTROL_CONFIRMATION_DOUBT
 }
 
 enum class UiModification {
-    UIM01_TEXT_SIZE,
-    UIM02_CONTRAST,
-    UIM03_TOUCH_TARGETS,
-    UIM04_SPACING,
-    UIM05_ICONS_LABELS,
-    UIM06_CONTEXTUAL_HELP,
-    UIM07_GUIDED_NAVIGATION,
-    UIM08_REINFORCED_CONFIRMATION,
-    UIM09_VISUAL_FEEDBACK,
-    UIM10_SAFE_EXIT
+    UIM01_TEXT,
+    UIM02_CONTEXTUAL_HELP_STEP_BY_STEP,
+    UIM03_REINFORCED_CONFIRMATION,
+    UIM04_VISUAL_FEEDBACK
 }
 
 enum class AdaptationRuleId {
-    AR01,
-    AR02,
-    AR03,
-    AR04,
-    AR05,
-    AR06,
-    AR07,
-    AR08
+    AR01_TIME_ON_SCREEN,
+    AR02_BACKTRACKING,
+    AR03_HELP_REQUEST,
+    AR04_FIELD_ERROR,
+    AR05_CONFIRMATION_PAUSE
+}
+
+enum class AdaptationLevel(val levelValue: Int) {
+    LEVEL_0_BASE(0),
+    LEVEL_1_LIGHT_SUPPORT(1),
+    LEVEL_2_MODERATE_SUPPORT(2),
+    LEVEL_3_HIGH_SUPPORT(3)
+}
+
+enum class UserDecision {
+    ACCEPTED,
+    REJECTED,
+    UNDONE,
+    NOT_REQUIRED
 }
 
 enum class ValidationType {
@@ -77,7 +78,8 @@ data class AppliedAdaptation(
     val ruleId: AdaptationRuleId,
     val modifications: List<UiModification>,
     val previousState: Map<String, Any> = emptyMap(),
-    val appliedAt: Long = System.currentTimeMillis()
+    val appliedAt: Long = System.currentTimeMillis(),
+    val level: AdaptationLevel = AdaptationLevel.LEVEL_1_LIGHT_SUPPORT
 )
 
 data class AdaptationPlan(
@@ -91,7 +93,8 @@ data class AdaptationPlan(
     val message: String,
     val taskId: TaskId?,
     val screenId: ScreenId?,
-    val reviewSummary: ReviewSummary? = null
+    val reviewSummary: ReviewSummary? = null,
+    val targetLevel: AdaptationLevel = AdaptationLevel.LEVEL_1_LIGHT_SUPPORT
 )
 
 enum class ValidationResult {
@@ -142,5 +145,6 @@ data class KnowledgeSnapshot(
     val rejectedRulesForTask: Set<AdaptationRuleId>,
     val suggestionsShownForTask: Int,
     val modalShownForScreen: Boolean,
-    val lastRejectionAt: Long?
+    val lastRejectionAt: Long?,
+    val rejectedRuleLevelsForTask: Set<Pair<AdaptationRuleId, AdaptationLevel>> = emptySet()
 )

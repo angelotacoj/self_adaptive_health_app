@@ -32,7 +32,7 @@ class AdaptiveViewModelTest {
     fun temporaryAdaptationsResetBetweenTasks() {
         val viewModel = viewModel()
         viewModel.resetTemporaryStateForTask(isAdaptive = true)
-        viewModel.rememberAcceptedPersistentPreference(UiModification.UIM01_TEXT_SIZE)
+        viewModel.rememberAcceptedPersistentPreference(UiModification.UIM01_TEXT)
 
         viewModel.resetState()
         viewModel.resetTemporaryStateForTask(isAdaptive = true)
@@ -44,7 +44,7 @@ class AdaptiveViewModelTest {
     fun acceptedFontSizePreferencePersistsToLaterSelfAdaptiveTask() {
         val viewModel = viewModel()
         viewModel.resetTemporaryStateForTask(isAdaptive = true)
-        viewModel.rememberAcceptedPersistentPreference(UiModification.UIM01_TEXT_SIZE)
+        viewModel.rememberAcceptedPersistentPreference(UiModification.UIM01_TEXT)
 
         viewModel.resetTemporaryStateForTask(isAdaptive = true)
 
@@ -55,7 +55,7 @@ class AdaptiveViewModelTest {
     fun staticModeNeverAppliesAdaptivePreferences() {
         val viewModel = viewModel()
         viewModel.resetTemporaryStateForTask(isAdaptive = true)
-        viewModel.rememberAcceptedPersistentPreference(UiModification.UIM01_TEXT_SIZE)
+        viewModel.rememberAcceptedPersistentPreference(UiModification.UIM01_TEXT)
 
         viewModel.resetTemporaryStateForTask(isAdaptive = false)
 

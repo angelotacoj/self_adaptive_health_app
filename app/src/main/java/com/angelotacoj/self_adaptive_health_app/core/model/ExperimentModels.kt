@@ -21,12 +21,12 @@ enum class ExperimentGroup(
 }
 
 data class ExperimentSession(
-    val participantCode: String,
+    val participantId: String,
     val group: ExperimentGroup
 )
 
 data class ExperimentSessionState(
-    val participantCode: String,
+    val participantId: String,
     val group: ExperimentGroup,
     val conditionOrder: List<ExperimentCondition>,
     val currentConditionIndex: Int = 0,
@@ -41,7 +41,7 @@ data class ExperimentSessionState(
         get() = conditionOrder[currentConditionIndex]
 
     val sessionId: String
-        get() = "${participantCode}_${sessionStartedAt}"
+        get() = "${participantId}_${sessionStartedAt}"
 
     fun cancelSession(): ExperimentSessionState = copy(isSessionActive = false, currentTaskId = null)
 

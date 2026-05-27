@@ -79,9 +79,9 @@ class SelfAdaptiveTasksInstrumentedTest {
         composeRule.waitForIdle()
 
         composeRule.waitUntil(timeoutMillis = 5_000) {
-            composeRule.onAllNodesWithText("Activar guía paso a paso").fetchSemanticsNodes().isNotEmpty()
+            composeRule.onAllNodesWithText("Mostrar etiquetas de navegación").fetchSemanticsNodes().isNotEmpty()
         }
-        composeRule.onNodeWithText("Activar guía paso a paso").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("Mostrar etiquetas de navegación").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("Sí, aplicar").assertIsDisplayed()
     }
 

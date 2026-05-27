@@ -3,10 +3,16 @@ package com.angelotacoj.self_adaptive_health_app.core.persistence.room
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
+enum class RejectionScope {
+    TASK,
+    SESSION,
+    GLOBAL
+}
+
 @Entity(tableName = "participant_sessions")
 data class ParticipantSessionEntity(
     @PrimaryKey val sessionId: String,
-    val participantCode: String,
+    val participantId: String,
     val group: String,
     val conditionOrder: String,
     val startedAt: Long,
@@ -18,7 +24,7 @@ data class ParticipantSessionEntity(
 data class TaskRunEntity(
     @PrimaryKey val taskRunId: String,
     val sessionId: String,
-    val participantCode: String,
+    val participantId: String,
     val condition: String,
     val taskId: String,
     val dataSet: String,
@@ -31,7 +37,7 @@ data class TaskRunEntity(
 data class InteractionEventEntity(
     @PrimaryKey val eventId: String,
     val sessionId: String,
-    val participantCode: String,
+    val participantId: String,
     val condition: String,
     val taskId: String?,
     val screenId: String?,
@@ -46,7 +52,7 @@ data class InteractionEventEntity(
 data class AdaptationEventEntity(
     @PrimaryKey val adaptationEventId: String,
     val sessionId: String,
-    val participantCode: String,
+    val participantId: String,
     val condition: String,
     val taskId: String?,
     val screenId: String?,
@@ -61,11 +67,17 @@ data class AdaptationEventEntity(
     val timestamp: Long
 )
 
-@Entity(tableName = "adaptation_preferences", primaryKeys = ["ruleId", "taskId", "screenId"])
+@Entity(
+    tableName = "adaptation_preferences",
+    indices = [androidx.room.Index(value = ["ruleId", "targetLevel", "scope", "taskId"], unique = true)]
+)
 data class AdaptationPreferenceEntity(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val ruleId: String,
-    val taskId: String,
-    val screenId: String,
+    val targetLevel: Int,
+    val scope: String, // String representation of RejectionScope
+    val taskId: String?,
+    val screenId: String?, // Now nullable to support non-task scopes if needed
     val rejectedCount: Int,
     val lastRejectedAt: Long,
     val suppressAutomatic: Boolean
@@ -89,7 +101,7 @@ data class UserDecisionEventEntity(
     @PrimaryKey val decisionId: String,
     val adaptationEventId: String?,
     val sessionId: String,
-    val participantCode: String,
+    val participantId: String,
     val taskId: String?,
     val screenId: String?,
     val decision: String,
@@ -99,7 +111,7 @@ data class UserDecisionEventEntity(
 @Entity(tableName = "initial_user_profiles")
 data class InitialUserProfileEntity(
     @PrimaryKey val sessionId: String,
-    val participantCode: String,
+    val participantId: String,
     val prefersLargeText: String,
     val prefersLargeButtons: String,
     val prefersIconLabels: String,
