@@ -13,6 +13,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -159,7 +160,7 @@ fun AccessScreen(
                             }
                         }
                     ),
-                    modifier = androidx.compose.ui.Modifier
+                    modifier = Modifier
                         .fillMaxWidth()
                         .focusRequester(codeFocusRequester)
                 )
@@ -192,7 +193,7 @@ fun AccessScreen(
                 OutlinedTextField(
                     value = state.simulatedPin,
                     onValueChange = { onAction(AccessAction.SimulatedPinChanged(it)) },
-                    label = { Text("PIN simulado", style = adaptiveLabelStyle(state)) },
+                    label = { Text("PIN", style = adaptiveLabelStyle(state)) },
                     supportingText = { Text(if (state.adaptiveUiState.contextualHelpVisible) "Use el PIN simulado mostrado en pantalla." else "PIN asignado", style = adaptiveBodyStyle(state)) },
                     isError = state.errorField == AccessErrorField.SimulatedPin || state.errorField == AccessErrorField.Both,
                     singleLine = true,
@@ -277,7 +278,7 @@ private fun CredentialCard(state: AccessState) {
         title = "Credenciales ficticias",
         rows = listOf(
             "Código de usuario" to state.credentials.userCode,
-            "PIN simulado" to state.credentials.simulatedPin
+            "PIN" to state.credentials.simulatedPin
         ),
         adaptiveUiState = state.adaptiveUiState
     )

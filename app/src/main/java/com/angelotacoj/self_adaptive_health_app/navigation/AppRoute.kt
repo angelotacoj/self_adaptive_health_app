@@ -12,4 +12,7 @@ sealed class AppRoute(val route: String) {
     data object DebugLogs : AppRoute("debug_logs")
     data object ConditionTransition : AppRoute("condition_transition")
     data object SessionCompleted : AppRoute("session_completed")
+    data object Ueq : AppRoute("ueq")
+    /** Phase C1.5: short semi-structured interview after both UEQ questionnaires. */
+    data object Interview : AppRoute("interview")
 }

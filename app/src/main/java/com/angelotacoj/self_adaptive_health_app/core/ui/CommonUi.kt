@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.clickable
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -88,31 +90,26 @@ object AdaptiveUiDefaults {
 }
 
 private fun AdaptiveUiState.contentSpacing(): Dp = when {
-    isAdaptiveMode && increasedSpacing -> AdaptiveUiDefaults.IncreasedSpacing
-    isAdaptiveMode -> AdaptiveUiDefaults.ContentSpacing
+    increasedSpacing -> AdaptiveUiDefaults.IncreasedSpacing
     else -> StaticUiDefaults.ContentSpacing
 }
 
-private fun AdaptiveUiState.cardPadding(): Dp =
-    if (isAdaptiveMode) AdaptiveUiDefaults.CardPadding else StaticUiDefaults.CardPadding
+private fun AdaptiveUiState.cardPadding(): Dp = StaticUiDefaults.CardPadding
 
-private fun AdaptiveUiState.cardRadius(): Dp =
-    if (isAdaptiveMode) AdaptiveUiDefaults.CardRadius else StaticUiDefaults.CardRadius
+private fun AdaptiveUiState.cardRadius(): Dp = StaticUiDefaults.CardRadius
 
 private fun AdaptiveUiState.buttonMinHeight(): Dp = when {
-    isAdaptiveMode && enlargedTouchTargets -> AdaptiveUiDefaults.EnlargedButtonMinHeight
-    isAdaptiveMode -> AdaptiveUiDefaults.ButtonMinHeight
+    enlargedTouchTargets -> AdaptiveUiDefaults.EnlargedButtonMinHeight
     else -> StaticUiDefaults.ButtonMinHeight
 }
 
 private fun AdaptiveUiState.buttonVerticalPadding(): Dp = when {
-    isAdaptiveMode && enlargedTouchTargets -> AdaptiveUiDefaults.EnlargedButtonVerticalPadding
-    isAdaptiveMode -> AdaptiveUiDefaults.ButtonVerticalPadding
+    enlargedTouchTargets -> AdaptiveUiDefaults.EnlargedButtonVerticalPadding
     else -> StaticUiDefaults.ButtonVerticalPadding
 }
 
 private fun scaled(size: TextUnit, state: AdaptiveUiState): TextUnit =
-    (size.value * if (state.isAdaptiveMode) state.textScale else 1f).sp
+    (size.value * state.textScale).sp
 
 @Composable
 fun AppScaffold(
@@ -151,7 +148,7 @@ fun ScreenContainer(
     content: @Composable ColumnScope.() -> Unit
 ) {
     val spacing = adaptiveUiState.contentSpacing()
-    val horizontalPadding = if (adaptiveUiState.isAdaptiveMode) AdaptiveUiDefaults.ScreenPadding else StaticUiDefaults.ScreenPadding
+    val horizontalPadding = StaticUiDefaults.ScreenPadding
     Scaffold(
         containerColor = AppBackground,
         topBar = {
@@ -263,7 +260,7 @@ fun HeroHeaderCard(
             )
             Text(
                 text = description,
-                style = MaterialTheme.typography.bodyLarge.copy(fontSize = scaled(if (adaptiveUiState.isAdaptiveMode) 17.sp else 14.sp, adaptiveUiState)),
+                style = MaterialTheme.typography.bodyLarge.copy(fontSize = scaled(StaticUiDefaults.BodySize, adaptiveUiState)),
                 color = Color(0xFF33514D)
             )
         }
@@ -342,10 +339,10 @@ fun LargePrimaryButton(
             },
         enabled = enabled,
         contentPadding = PaddingValues(horizontal = if (adaptiveUiState.isAdaptiveMode) 22.dp else 16.dp, vertical = adaptiveUiState.buttonVerticalPadding()),
-        shape = RoundedCornerShape(if (adaptiveUiState.isAdaptiveMode) AdaptiveUiDefaults.ButtonRadius else StaticUiDefaults.ButtonRadius),
+        shape = RoundedCornerShape(StaticUiDefaults.ButtonRadius),
         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
     ) {
-        Text(text = text, style = MaterialTheme.typography.titleMedium.copy(fontSize = scaled(if (adaptiveUiState.isAdaptiveMode) 17.sp else 14.sp, adaptiveUiState)))
+        Text(text = text, style = MaterialTheme.typography.titleMedium.copy(fontSize = scaled(StaticUiDefaults.BodySize, adaptiveUiState)))
     }
 }
 
@@ -371,10 +368,10 @@ fun LargeSecondaryButton(
                 }
             },
         contentPadding = PaddingValues(horizontal = if (adaptiveUiState.isAdaptiveMode) 22.dp else 16.dp, vertical = adaptiveUiState.buttonVerticalPadding()),
-        shape = RoundedCornerShape(if (adaptiveUiState.isAdaptiveMode) AdaptiveUiDefaults.ButtonRadius else StaticUiDefaults.ButtonRadius),
+        shape = RoundedCornerShape(StaticUiDefaults.ButtonRadius),
         colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary)
     ) {
-        Text(text = text, style = MaterialTheme.typography.titleMedium.copy(fontSize = scaled(if (adaptiveUiState.isAdaptiveMode) 17.sp else 14.sp, adaptiveUiState)))
+        Text(text = text, style = MaterialTheme.typography.titleMedium.copy(fontSize = scaled(StaticUiDefaults.BodySize, adaptiveUiState)))
     }
 }
 
@@ -400,10 +397,10 @@ fun LargeDestructiveButton(
                 }
             },
         contentPadding = PaddingValues(horizontal = if (adaptiveUiState.isAdaptiveMode) 22.dp else 16.dp, vertical = adaptiveUiState.buttonVerticalPadding()),
-        shape = RoundedCornerShape(if (adaptiveUiState.isAdaptiveMode) AdaptiveUiDefaults.ButtonRadius else StaticUiDefaults.ButtonRadius),
+        shape = RoundedCornerShape(StaticUiDefaults.ButtonRadius),
         colors = ButtonDefaults.outlinedButtonColors(contentColor = SoftRed)
     ) {
-        Text(text = text, style = MaterialTheme.typography.titleMedium.copy(fontSize = scaled(if (adaptiveUiState.isAdaptiveMode) 17.sp else 14.sp, adaptiveUiState)))
+        Text(text = text, style = MaterialTheme.typography.titleMedium.copy(fontSize = scaled(StaticUiDefaults.BodySize, adaptiveUiState)))
     }
 }
 
@@ -426,13 +423,13 @@ fun InfoCard(
         ) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.titleLarge.copy(fontSize = scaled(if (adaptiveUiState.isAdaptiveMode) AdaptiveUiDefaults.TitleSize else StaticUiDefaults.TitleSize, adaptiveUiState)),
+                style = MaterialTheme.typography.titleLarge.copy(fontSize = scaled(StaticUiDefaults.TitleSize, adaptiveUiState)),
                 fontWeight = FontWeight.Bold
             )
             lines.forEach { line ->
                 Text(
                     text = "• $line",
-                    style = MaterialTheme.typography.bodyLarge.copy(fontSize = scaled(if (adaptiveUiState.isAdaptiveMode) AdaptiveUiDefaults.BodySize else StaticUiDefaults.BodySize, adaptiveUiState)),
+                    style = MaterialTheme.typography.bodyLarge.copy(fontSize = scaled(StaticUiDefaults.BodySize, adaptiveUiState)),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -476,7 +473,7 @@ fun TaskProgressHeader(
                     trackColor = Color(0xFFE8DCC3)
                 )
             }
-            Text(title, style = MaterialTheme.typography.titleLarge.copy(fontSize = scaled(if (adaptiveUiState.isAdaptiveMode) AdaptiveUiDefaults.TitleSize else StaticUiDefaults.TitleSize, adaptiveUiState)), fontWeight = FontWeight.Bold)
+            Text(title, style = MaterialTheme.typography.titleLarge.copy(fontSize = scaled(StaticUiDefaults.TitleSize, adaptiveUiState)), fontWeight = FontWeight.Bold)
             if (adaptiveUiState.guidedModeEnabled && adaptiveUiState.guidedStepMessage != null) {
                 Text(
                     text = adaptiveUiState.guidedStepMessage,
@@ -505,11 +502,11 @@ fun SummaryReviewCard(
             modifier = Modifier.padding(adaptiveUiState.cardPadding()),
             verticalArrangement = Arrangement.spacedBy(if (adaptiveUiState.isAdaptiveMode && adaptiveUiState.increasedSpacing) 16.dp else 8.dp)
         ) {
-            Text(title, style = MaterialTheme.typography.titleLarge.copy(fontSize = scaled(if (adaptiveUiState.isAdaptiveMode) AdaptiveUiDefaults.TitleSize else StaticUiDefaults.TitleSize, adaptiveUiState)), fontWeight = FontWeight.Bold)
+            Text(title, style = MaterialTheme.typography.titleLarge.copy(fontSize = scaled(StaticUiDefaults.TitleSize, adaptiveUiState)), fontWeight = FontWeight.Bold)
             rows.forEach { (label, value) ->
                 Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Text(label, style = MaterialTheme.typography.titleMedium.copy(fontSize = scaled(if (adaptiveUiState.isAdaptiveMode) AdaptiveUiDefaults.LabelSize else StaticUiDefaults.LabelSize, adaptiveUiState)), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                    Text(value, style = MaterialTheme.typography.bodyLarge.copy(fontSize = scaled(if (adaptiveUiState.isAdaptiveMode) AdaptiveUiDefaults.BodySize else StaticUiDefaults.BodySize, adaptiveUiState)), color = MaterialTheme.colorScheme.onSurface)
+                    Text(label, style = MaterialTheme.typography.titleMedium.copy(fontSize = scaled(StaticUiDefaults.LabelSize, adaptiveUiState)), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                    Text(value, style = MaterialTheme.typography.bodyLarge.copy(fontSize = scaled(StaticUiDefaults.BodySize, adaptiveUiState)), color = MaterialTheme.colorScheme.onSurface)
                 }
             }
         }
@@ -545,10 +542,10 @@ fun TaskCard(
                     if (status != null) Text(status, color = Color(0xFF4C7B52), fontWeight = FontWeight.SemiBold)
                 }
             }
-            Text(text = title, style = MaterialTheme.typography.titleLarge.copy(fontSize = scaled(if (adaptiveUiState.isAdaptiveMode) AdaptiveUiDefaults.TitleSize else StaticUiDefaults.TitleSize, adaptiveUiState)), fontWeight = FontWeight.Bold)
+            Text(text = title, style = MaterialTheme.typography.titleLarge.copy(fontSize = scaled(StaticUiDefaults.TitleSize, adaptiveUiState)), fontWeight = FontWeight.Bold)
             Text(
                 text = description,
-                style = MaterialTheme.typography.bodyLarge.copy(fontSize = scaled(if (adaptiveUiState.isAdaptiveMode) AdaptiveUiDefaults.BodySize else StaticUiDefaults.BodySize, adaptiveUiState)),
+                style = MaterialTheme.typography.bodyLarge.copy(fontSize = scaled(StaticUiDefaults.BodySize, adaptiveUiState)),
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             LargePrimaryButton(
@@ -579,4 +576,47 @@ fun ButtonRow(
 private fun parseProgress(stepText: String): Float {
     val numbers = Regex("(\\d+)").findAll(stepText).map { it.value.toFloat() }.toList()
     return if (numbers.size >= 2 && numbers[1] > 0f) (numbers[0] / numbers[1]).coerceIn(0f, 1f) else 1f
+}
+
+@Composable
+fun NoticeBanner(message: String, isError: Boolean = false) {
+    androidx.compose.foundation.layout.Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp)
+            .background(
+                color = if (isError) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.secondaryContainer,
+                shape = MaterialTheme.shapes.medium
+            )
+            .padding(16.dp)
+    ) {
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (isError) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSecondaryContainer
+        )
+    }
+}
+
+@Composable
+fun CheckableOptionRow(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    androidx.compose.foundation.layout.Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .clickable(onClick = onClick)
+            .padding(8.dp),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+    ) {
+        androidx.compose.material3.RadioButton(
+            selected = selected,
+            onClick = onClick
+        )
+        androidx.compose.foundation.layout.Spacer(Modifier.width(8.dp))
+        Text(text = label, style = MaterialTheme.typography.bodyLarge)
+    }
 }

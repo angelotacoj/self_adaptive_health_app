@@ -3,20 +3,25 @@ package com.angelotacoj.self_adaptive_health_app.core.model
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.ExperimentCondition
 import com.angelotacoj.self_adaptive_health_app.core.logging.TaskId
 
+/**
+ * LEGACY METADATA ONLY (Phase C1.5+).
+ *
+ * ExperimentGroup is retained in the database schema and log entries
+ * for traceability/export purposes, but it NO LONGER determines condition order.
+ * All participants follow the fixed order defined in [FIXED_CONDITION_ORDER].
+ *
+ * GroupA / GroupB are kept so existing Room rows remain valid.
+ * The value stored for new sessions is [ExperimentGroup.GroupA] by convention.
+ * Do NOT use this enum to derive condition sequencing.
+ */
 enum class ExperimentGroup(
     val label: String,
-    val orderDescription: String,
-    val dataSetId: String
 ) {
     GroupA(
         label = "Grupo A",
-        orderDescription = "Interfaz estática -> Interfaz autoadaptativa",
-        dataSetId = "Conjunto A"
     ),
     GroupB(
         label = "Grupo B",
-        orderDescription = "Interfaz autoadaptativa -> Interfaz estática",
-        dataSetId = "Conjunto B"
     )
 }
 
@@ -76,7 +81,14 @@ data class Appointment(
     val title: String,
     val date: String,
     val time: String,
-    val instruction: String
+    val instruction: String,
+    val professionalName: String,
+    val specialty: String,
+    val location: String,
+    val preparation: String,
+    val itemsToBring: String,
+    val accessibilityNote: String,
+    val simulationDisclaimer: String = "Documento ficticio - Solo para fines de simulación"
 )
 
 data class AccessCredentials(
@@ -142,9 +154,24 @@ fun ExperimentSessionState.isExperimentComplete(): Boolean {
     }
 }
 
-fun ExperimentGroup.conditionOrder(): List<ExperimentCondition> {
-    return when (this) {
-        ExperimentGroup.GroupA -> listOf(ExperimentCondition.STATIC_UI, ExperimentCondition.SELF_ADAPTIVE_UI)
-        ExperimentGroup.GroupB -> listOf(ExperimentCondition.SELF_ADAPTIVE_UI, ExperimentCondition.STATIC_UI)
-    }
-}
+/**
+ * Phase C1.5 – Fixed condition order for all participants.
+ *
+ * Within-subjects, no counterbalancing:
+ *  1. STATIC_UI   (then UEQ)
+ *  2. SELF_ADAPTIVE_UI (then UEQ + short interview)
+ */
+val FIXED_CONDITION_ORDER: List<ExperimentCondition> =
+    listOf(
+        ExperimentCondition.STATIC_UI,
+        ExperimentCondition.SELF_ADAPTIVE_UI
+    )
+
+/**
+ * Always returns [FIXED_CONDITION_ORDER] regardless of group.
+ *
+ * The `group` field is retained as legacy export metadata only.
+ * Do NOT add new behaviour that branches on ExperimentGroup.
+ */
+fun ExperimentGroup.conditionOrder(): List<ExperimentCondition> =
+    FIXED_CONDITION_ORDER

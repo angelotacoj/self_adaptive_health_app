@@ -122,3 +122,15 @@ data class InitialUserProfileEntity(
     val prefersAdaptationPrompt: String,
     val timestamp: Long
 )
+
+@Entity(tableName = "task_outputs", primaryKeys = ["participantId", "sessionId", "condition", "taskId"])
+data class TaskOutputEntity(
+    val participantId: String,
+    val sessionId: String,
+    val condition: String,
+    val taskId: String,
+    val taskOutputType: String,
+    val payloadJson: String,
+    val createdAt: Long,
+    val updatedAt: Long
+)

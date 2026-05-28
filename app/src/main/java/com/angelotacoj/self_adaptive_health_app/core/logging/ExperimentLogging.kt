@@ -25,7 +25,16 @@ enum class InteractionEventType {
     ADAPTATION_APPLIED,
     ADAPTATION_REJECTED,
     ADAPTATION_UNDONE,
-    ADAPTATION_SUPPRESSED
+    ADAPTATION_SUPPRESSED,
+    // Phase C1: UEQ questionnaire events
+    UEQ_OPENED,
+    UEQ_SAVED,
+    UEQ_INCOMPLETE_SUBMIT,
+    // Phase C1.5: fixed flow + short interview events
+    FIXED_FLOW_STARTED,
+    INTERVIEW_OPENED,
+    INTERVIEW_SAVED,
+    INTERVIEW_SKIPPED
 }
 
 enum class TaskId(val label: String) {
@@ -65,6 +74,8 @@ enum class ScreenId {
     SUMMARY_REVIEW,
     SUMMARY_CONFIRMATION,
     SUMMARY_FINAL,
+    UEQ_QUESTIONNAIRE,   // Phase C1: UEQ screen
+    INTERVIEW_SCREEN,    // Phase C1.5: short interview screen
     DEBUG_LOGS
 }
 

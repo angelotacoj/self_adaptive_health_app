@@ -84,6 +84,43 @@ fun SummaryScreen(
         ContextualHelpBox(state.adaptiveUiState, onHideHelp)
         UndoAdaptationCard(state.adaptiveUiState.undoMessageVisible, onUndoAdaptation, onKeepAdaptation, state.adaptiveUiState)
 
+        val parsedItems = androidx.compose.runtime.remember(state.taskOutputs) {
+            val list = mutableListOf<Pair<String, String>>()
+            
+            val t1 = state.taskOutputs["T1_ACCESS"]
+            if (t1 != null) {
+                val json = org.json.JSONObject(t1)
+                list.add("T1: Acceso" to "Código: ${json.optString("participantCode", "N/A")}")
+            } else {
+                list.add("T1: Acceso" to "Información simulada no registrada aún.")
+            }
+
+            val t2 = state.taskOutputs["T2_APPOINTMENT"]
+            if (t2 != null) {
+                val json = org.json.JSONObject(t2)
+                list.add("T2: Cita" to "${json.optString("professionalName", "")} - ${json.optString("appointmentDate", "")} ${json.optString("appointmentTime", "")}")
+            } else {
+                list.add("T2: Cita" to "Información simulada no registrada aún.")
+            }
+
+            val t3 = state.taskOutputs["T3_WELL_BEING"]
+            if (t3 != null) {
+                val json = org.json.JSONObject(t3)
+                list.add("T3: Bienestar" to "Energía: ${json.optString("energyLevel", "")}, Ánimo: ${json.optString("mood", "")}")
+            } else {
+                list.add("T3: Bienestar" to "Información simulada no registrada aún.")
+            }
+
+            val t4 = state.taskOutputs["T4_REMINDER"]
+            if (t4 != null) {
+                val json = org.json.JSONObject(t4)
+                list.add("T4: Recordatorio" to "${json.optString("reminderType", "")} a las ${json.optString("reminderTime", "")}")
+            } else {
+                list.add("T4: Recordatorio" to "Información simulada no registrada aún.")
+            }
+            list
+        }
+
         when (state.step) {
             SummaryStep.Intro -> {
                 TaskProgressHeader("Paso 1 de 4", "Resumen de información", adaptiveUiState = state.adaptiveUiState)
@@ -99,10 +136,7 @@ fun SummaryScreen(
                 TaskProgressHeader("Paso 2 de 4", "Revisar detalles", adaptiveUiState = state.adaptiveUiState)
                 SummaryReviewCard(
                     "Datos simulados",
-                    listOf(
-                        "Acceso" to "Código ${state.dataSet.accessCredentials.userCode}",
-                        "Recordatorio" to state.dataSet.reminder.time
-                    ),
+                    parsedItems,
                     adaptiveUiState = state.adaptiveUiState
                 )
                 LargePrimaryButton(
@@ -111,10 +145,7 @@ fun SummaryScreen(
                         onLog(InteractionEventType.SENSITIVE_ACTION, screenId, "Save information clicked for simulated summary.")
                         val summaryData = com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.ReviewSummary(
                             title = "Datos simulados",
-                            details = mapOf(
-                                "Acceso" to "Código ${state.dataSet.accessCredentials.userCode}",
-                                "Recordatorio" to state.dataSet.reminder.time
-                            )
+                            details = parsedItems.toMap()
                         )
                         val requiresValidation = onAdaptiveEvent(AdaptiveInteractionEventType.SENSITIVE_ACTION, screenId, summaryData)
                         if (!requiresValidation) onAction(SummaryAction.SaveInformationClicked)
@@ -130,11 +161,8 @@ fun SummaryScreen(
                 if (state.adaptiveUiState.reinforcedConfirmationVisible || state.adaptiveUiState.contextualHelpVisible) {
                     InstructionCard("Antes de guardar", listOf("Está por confirmar información simulada.", "Puede confirmar, editar o cancelar."), adaptiveUiState = state.adaptiveUiState)
                     SummaryReviewCard(
-                        "Resumen concreto",
-                        listOf(
-                            "Acceso" to "Código ${state.dataSet.accessCredentials.userCode}",
-                            "Recordatorio" to state.dataSet.reminder.time
-                        ),
+                        "Resumen de lo que se guardará",
+                        parsedItems,
                         adaptiveUiState = state.adaptiveUiState
                     )
                 }

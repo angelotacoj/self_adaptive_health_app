@@ -1,11 +1,6 @@
 package com.angelotacoj.self_adaptive_health_app.experiment
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -17,10 +12,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.angelotacoj.self_adaptive_health_app.core.model.ExperimentGroup
 import com.angelotacoj.self_adaptive_health_app.core.model.ExperimentSession
 import com.angelotacoj.self_adaptive_health_app.core.security.ResearcherPinDialog
 import com.angelotacoj.self_adaptive_health_app.core.ui.HeroHeaderCard
@@ -30,6 +22,12 @@ import com.angelotacoj.self_adaptive_health_app.core.ui.LargePrimaryButton
 import com.angelotacoj.self_adaptive_health_app.core.ui.LargeSecondaryButton
 import com.angelotacoj.self_adaptive_health_app.core.ui.ScreenContainer
 
+/**
+ * Phase C1.5: Group selection has been removed.
+ *
+ * All participants follow the fixed order: STATIC_UI → SELF_ADAPTIVE_UI.
+ * [ExperimentGroup.GroupA] is stored silently as a legacy export field.
+ */
 @Composable
 fun ExperimentSetupScreen(
     state: ExperimentSetupState,
@@ -62,77 +60,31 @@ fun ExperimentSetupScreen(
             description = "Prototipo de salud móvil simulada para evaluación de interfaces."
         )
 
+        // Flow description (replaces the removed group selector)
+        InstructionCard(
+            title = "Flujo experimental",
+            instructions = listOf(
+                "Todos los participantes siguen el mismo orden fijo:",
+                "1. Interfaz estática (STATIC) → Cuestionario UEQ",
+                "2. Interfaz autoadaptativa (ADAPTIVE) → Cuestionario UEQ → Entrevista breve"
+            )
+        )
+
         OutlinedTextField(
             value = state.participantSuffix,
             onValueChange = { onAction(ExperimentSetupAction.ParticipantSuffixChanged(it)) },
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("participant_suffix_input"),
-            label = { Text(text = "Código asignado", fontSize = 14.sp) },
-            textStyle = MaterialTheme.typography.titleLarge,
+            label = { Text(text = "Código asignado al participante", fontSize = 13.sp) },
+            textStyle = MaterialTheme.typography.titleSmall,
             singleLine = true,
-            shape = MaterialTheme.shapes.large,
+            shape = MaterialTheme.shapes.small,
             colors = OutlinedTextFieldDefaults.colors(
                 focusedContainerColor = MaterialTheme.colorScheme.surface,
                 unfocusedContainerColor = MaterialTheme.colorScheme.surface
             )
         )
-
-        if (generatedParticipantCode != null && state.participantSuffix.length == 4) {
-            Text(
-                text = "Código generado: $generatedParticipantCode",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
-
-        Text(
-            text = "Seleccione el grupo experimental",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold
-        )
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            ExperimentGroup.entries.forEach { group ->
-                val selected = state.selectedGroup == group
-                ElevatedCard(
-                    onClick = { onAction(ExperimentSetupAction.GroupSelected(group)) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag(
-                            when (group) {
-                                ExperimentGroup.GroupA -> "group_a_option"
-                                ExperimentGroup.GroupB -> "group_b_option"
-                            }
-                        ),
-                    shape = MaterialTheme.shapes.extraLarge,
-                    colors = CardDefaults.elevatedCardColors(
-                        containerColor = if (selected) {
-                            MaterialTheme.colorScheme.primaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.surface
-                        }
-                    ),
-                    elevation = CardDefaults.elevatedCardElevation(defaultElevation = if (selected) 4.dp else 1.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(18.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            text = group.label,
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = group.orderDescription,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-        }
 
         if (state.errorMessage != null) {
             Text(

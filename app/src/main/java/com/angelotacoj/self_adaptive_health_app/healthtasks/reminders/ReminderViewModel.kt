@@ -9,26 +9,42 @@ import kotlinx.coroutines.flow.asStateFlow
 
 enum class ReminderStep {
     Intro,
-    SelectActivity,
-    SelectTime,
-    SelectFrequency,
+    SelectType,
+    SelectSchedule,
+    SelectDetails,
     ReviewSummary,
     Saved
 }
 
 data class ReminderState(
     val step: ReminderStep = ReminderStep.Intro,
-    val activity: String,
-    val time: String,
-    val frequency: String,
+    val activity: String, // from template (what they need to configure)
+    val time: String, // from template
+    val frequency: String, // from template
+    val selectedType: String = "",
+    val selectedDate: String = "",
+    val selectedTime: String = "",
+    val selectedFrequency: String = "",
+    val optionalLocation: String = "",
+    val optionalNote: String = "",
     val adaptiveUiState: AdaptiveUiState = AdaptiveUiState()
 )
 
 sealed interface ReminderAction {
     data object StartNewReminderClicked : ReminderAction
-    data object ActivitySelected : ReminderAction
-    data object TimeSelected : ReminderAction
-    data object FrequencySelected : ReminderAction
+    
+    // Updates
+    data class TypeUpdated(val value: String) : ReminderAction
+    data class DateUpdated(val value: String) : ReminderAction
+    data class TimeUpdated(val value: String) : ReminderAction
+    data class FrequencyUpdated(val value: String) : ReminderAction
+    data class LocationUpdated(val value: String) : ReminderAction
+    data class NoteUpdated(val value: String) : ReminderAction
+
+    // Navigation
+    data object TypeNextClicked : ReminderAction
+    data object ScheduleNextClicked : ReminderAction
+    data object DetailsNextClicked : ReminderAction
     data object SaveReminderClicked : ReminderAction
     data object BackClicked : ReminderAction
     data object CancelClicked : ReminderAction
@@ -57,18 +73,42 @@ class ReminderViewModel : ViewModel() {
         val current = _state.value ?: return null
         return when (action) {
             ReminderAction.StartNewReminderClicked -> {
-                _state.value = current.copy(step = ReminderStep.SelectActivity)
+                _state.value = current.copy(step = ReminderStep.SelectType)
                 null
             }
-            ReminderAction.ActivitySelected -> {
-                _state.value = current.copy(step = ReminderStep.SelectTime)
+            is ReminderAction.TypeUpdated -> {
+                _state.value = current.copy(selectedType = action.value)
                 null
             }
-            ReminderAction.TimeSelected -> {
-                _state.value = current.copy(step = ReminderStep.SelectFrequency)
+            is ReminderAction.DateUpdated -> {
+                _state.value = current.copy(selectedDate = action.value)
                 null
             }
-            ReminderAction.FrequencySelected -> {
+            is ReminderAction.TimeUpdated -> {
+                _state.value = current.copy(selectedTime = action.value)
+                null
+            }
+            is ReminderAction.FrequencyUpdated -> {
+                _state.value = current.copy(selectedFrequency = action.value)
+                null
+            }
+            is ReminderAction.LocationUpdated -> {
+                _state.value = current.copy(optionalLocation = action.value)
+                null
+            }
+            is ReminderAction.NoteUpdated -> {
+                _state.value = current.copy(optionalNote = action.value)
+                null
+            }
+            ReminderAction.TypeNextClicked -> {
+                _state.value = current.copy(step = ReminderStep.SelectSchedule)
+                null
+            }
+            ReminderAction.ScheduleNextClicked -> {
+                _state.value = current.copy(step = ReminderStep.SelectDetails)
+                null
+            }
+            ReminderAction.DetailsNextClicked -> {
                 _state.value = current.copy(step = ReminderStep.ReviewSummary)
                 null
             }
@@ -79,10 +119,10 @@ class ReminderViewModel : ViewModel() {
             ReminderAction.BackClicked -> {
                 when (current.step) {
                     ReminderStep.Intro -> return ReminderEvent.ExitTask
-                    ReminderStep.SelectActivity -> _state.value = current.copy(step = ReminderStep.Intro)
-                    ReminderStep.SelectTime -> _state.value = current.copy(step = ReminderStep.SelectActivity)
-                    ReminderStep.SelectFrequency -> _state.value = current.copy(step = ReminderStep.SelectTime)
-                    ReminderStep.ReviewSummary -> _state.value = current.copy(step = ReminderStep.SelectFrequency)
+                    ReminderStep.SelectType -> _state.value = current.copy(step = ReminderStep.Intro)
+                    ReminderStep.SelectSchedule -> _state.value = current.copy(step = ReminderStep.SelectType)
+                    ReminderStep.SelectDetails -> _state.value = current.copy(step = ReminderStep.SelectSchedule)
+                    ReminderStep.ReviewSummary -> _state.value = current.copy(step = ReminderStep.SelectDetails)
                     ReminderStep.Saved -> return ReminderEvent.ExitTask
                 }
                 null

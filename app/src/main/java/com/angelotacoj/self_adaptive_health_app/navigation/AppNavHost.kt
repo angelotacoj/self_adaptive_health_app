@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -54,6 +56,7 @@ import com.angelotacoj.self_adaptive_health_app.core.persistence.room.TaskRunEnt
 import com.angelotacoj.self_adaptive_health_app.core.ui.InstructionCard
 import com.angelotacoj.self_adaptive_health_app.core.ui.LargePrimaryButton
 import com.angelotacoj.self_adaptive_health_app.core.ui.ScreenContainer
+import com.angelotacoj.self_adaptive_health_app.core.ui.LargeSecondaryButton
 import com.angelotacoj.self_adaptive_health_app.debug.DebugLogsScreen
 import com.angelotacoj.self_adaptive_health_app.di.AppContainer
 import com.angelotacoj.self_adaptive_health_app.experiment.ExperimentSetupScreen
@@ -79,6 +82,12 @@ import com.angelotacoj.self_adaptive_health_app.healthtasks.wellbeing.WellBeingA
 import com.angelotacoj.self_adaptive_health_app.healthtasks.wellbeing.WellBeingScreen
 import com.angelotacoj.self_adaptive_health_app.healthtasks.wellbeing.WellBeingViewModel
 import com.angelotacoj.self_adaptive_health_app.ui.theme.Self_Adaptive_Health_AppTheme
+import com.angelotacoj.self_adaptive_health_app.ueq.presentation.UeqEvent
+import com.angelotacoj.self_adaptive_health_app.ueq.presentation.UeqScreen
+import com.angelotacoj.self_adaptive_health_app.ueq.presentation.UeqViewModel
+import com.angelotacoj.self_adaptive_health_app.interview.presentation.InterviewEvent
+import com.angelotacoj.self_adaptive_health_app.interview.presentation.InterviewScreen
+import com.angelotacoj.self_adaptive_health_app.interview.presentation.InterviewViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -112,6 +121,7 @@ class AdaptiveViewModelFactory(
     }
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun AppNavHost(
     navController: NavHostController = rememberNavController()
@@ -129,6 +139,10 @@ fun AppNavHost(
     var pendingSetupSession by remember { mutableStateOf<com.angelotacoj.self_adaptive_health_app.core.model.ExperimentSession?>(null) }
     var conditionTransitionState by remember { mutableStateOf<ExperimentSessionState?>(null) }
     var sessionCompletedState by remember { mutableStateOf<ExperimentSessionState?>(null) }
+    // Phase C1: track which condition the UEQ is being answered for
+    var ueqConditionState by remember { mutableStateOf<ExperimentSessionState?>(null) }
+    // Phase C1.5: track session for short interview (shown after second UEQ)
+    var interviewSessionState by remember { mutableStateOf<ExperimentSessionState?>(null) }
     val logger = AppContainer.experimentLogger
     val scope = rememberCoroutineScope()
 
@@ -166,6 +180,7 @@ fun AppNavHost(
         val dataSet = AppContainer.fakeHealthDataSource.getDataSet(group)
         val snapshot = AppContainer.experimentPreferences.sessionSnapshot.first()
         val isActiveSession = snapshot.isSessionActive && snapshot.currentSessionId == sessionId
+        // If datastore was wiped but we are resuming, we default to 0 and fix it during resume logic.
         val conditionIndex = if (isActiveSession) {
             snapshot.currentConditionIndex.coerceIn(0, group.conditionOrder().lastIndex)
         } else {
@@ -191,7 +206,7 @@ fun AppNavHost(
             sessionStartedAt = entity.startedAt,
             isSessionActive = isActiveSession,
             isProfileCompleted = snapshot.isProfileCompleted
-        )
+        ).let { s -> if (entity.isCompleted) s.finishSession() else s }
     }
 
     suspend fun restoreActiveSession(): ExperimentSessionState? {
@@ -204,8 +219,9 @@ fun AppNavHost(
         val dataSet = AppContainer.fakeHealthDataSource.getDataSet(newSession.group)
         val started = ExperimentSessionState(
             participantId = newSession.participantId,
+            // Phase C1.5: group is stored as legacy metadata only; conditionOrder() always returns FIXED_CONDITION_ORDER
             group = newSession.group,
-            conditionOrder = newSession.group.conditionOrder(),
+            conditionOrder = newSession.group.conditionOrder(),  // returns STATIC -> ADAPTIVE for all groups
             currentDataSet = dataSet
         )
         sessionState = started
@@ -229,6 +245,7 @@ fun AppNavHost(
                 )
             )
         }
+        log(started.logEntry(InteractionEventType.FIXED_FLOW_STARTED, screenId = ScreenId.EXPERIMENT_SETUP, message = "Fixed-order flow started: STATIC → UEQ → ADAPTIVE → UEQ → Interview."))
         log(started.logEntry(InteractionEventType.SESSION_STARTED, screenId = ScreenId.EXPERIMENT_SETUP, message = "Experimental session started."))
         log(started.logEntry(InteractionEventType.CONDITION_STARTED, screenId = ScreenId.EXPERIMENT_SETUP, message = "${started.currentCondition} condition started."))
         navController.navigate(AppRoute.InitialProfile.route) {
@@ -236,6 +253,7 @@ fun AppNavHost(
             launchSingleTop = true
         }
     }
+
 
     suspend fun generateParticipantCode(suffix: String): String {
         val dao = AppContainer.database.experimentDao()
@@ -365,16 +383,18 @@ fun AppNavHost(
             AppContainer.experimentPreferences.saveSession(nextState)
             MapeKLog.experiment("total completed tasks=${dao.getTotalCompletedTaskCount(session.sessionId)}/${session.totalRequiredTaskRuns()}")
         }
-        if (conditionDone && !finalDone && completedTaskState.currentConditionIndex < completedTaskState.conditionOrder.lastIndex) {
-            conditionTransitionState = completedTaskState
-            navController.navigate(AppRoute.ConditionTransition.route)
-        } else if (finalDone) {
-            MapeKLog.experiment("session completed total=${nextState.completedTaskCount()}/${nextState.totalRequiredTaskRuns()}")
-            navController.navigate(AppRoute.SessionCompleted.route) {
-                popUpTo(AppRoute.Home.route) { inclusive = true }
-                launchSingleTop = true
+        if (conditionDone) {
+            ueqConditionState = completedTaskState
+            if (!finalDone && completedTaskState.currentConditionIndex < completedTaskState.conditionOrder.lastIndex) {
+                conditionTransitionState = completedTaskState
+            } else {
+                sessionCompletedState = completedTaskState
+                MapeKLog.experiment("session completed total=${nextState.completedTaskCount()}/${nextState.totalRequiredTaskRuns()}")
             }
-            sessionState = nextState
+            navController.navigate(AppRoute.Ueq.route)
+            if (finalDone) {
+                sessionState = nextState
+            }
         }
     }
 
@@ -420,56 +440,84 @@ fun AppNavHost(
             val state by viewModel.state.collectAsStateWithLifecycle()
             var generatedParticipantCode by remember { mutableStateOf<String?>(null) }
             LaunchedEffect(state.participantSuffix) {
-                generatedParticipantCode = if (state.participantSuffix.length == 4) {
-                    generateParticipantCode(state.participantSuffix)
-                } else {
-                    null
-                }
+                generatedParticipantCode = state.participantSuffix.takeIf { it.length == 4 }
             }
             ExperimentSetupScreen(
                 state = state,
                 generatedParticipantCode = generatedParticipantCode,
                 existingSessionMessage = existingSetupSession?.let {
-                    "Ya existe una sesión para ${it.participantId}. Condición actual: ${it.currentCondition}. Tareas completadas: ${it.completedTaskCount()}/${it.totalRequiredTaskRuns()}."
+                    if (!it.isSessionActive && it.completedTaskCount() == it.totalRequiredTaskRuns()) {
+                        "Ya existe una sesión completada para el código ${it.participantId}."
+                    } else {
+                        "Ya existe una sesión pendiente para este código (${it.participantId}). ¿Desea continuarla?"
+                    }
                 },
                 onAction = viewModel::onAction,
                 onStartSession = { newSession ->
                     scope.launch {
-                        val suffix = newSession.participantId.substringAfter("-", missingDelimiterValue = newSession.participantId)
-                        val uniqueCode = if (AppContainer.database.experimentDao().participantIdExists(newSession.participantId)) {
-                            generateParticipantCode(suffix)
-                        } else {
-                            newSession.participantId
-                        }
-                        val resolvedSession = newSession.copy(participantId = uniqueCode)
-                        val existing = AppContainer.database.experimentDao()
-                            .getSessionByParticipantCode(resolvedSession.participantId)
-                            .firstOrNull()
-                        val active = existing?.let { buildSessionStateFromRoom(it.sessionId) }
-                        if (active != null && active.isSessionActive) {
+                        val code = newSession.participantId
+                        val existingSessions = AppContainer.database.experimentDao()
+                            .getSessionByParticipantCode(code)
+                        val existingEntity = existingSessions.firstOrNull { !it.isCompleted } 
+                            ?: existingSessions.firstOrNull()
+                        
+                        if (existingEntity != null) {
+                            val active = buildSessionStateFromRoom(existingEntity.sessionId)
                             withContext(Dispatchers.Main) {
-                                pendingSetupSession = resolvedSession
+                                pendingSetupSession = newSession
                                 existingSetupSession = active
                             }
-                            MapeKLog.experiment("existing participant session found participant=${resolvedSession.participantId} session=${active.sessionId}")
+                            MapeKLog.experiment("existing participant session found participant=$code session=${existingEntity.sessionId}")
                         } else {
                             withContext(Dispatchers.Main) {
-                                startFreshSession(resolvedSession)
+                                startFreshSession(newSession)
                             }
                         }
                     }
                 },
                 onContinueExistingSession = {
-                    existingSetupSession?.let {
-                        sessionState = it
-                        adaptiveViewModel.resetState()
-                        adaptiveViewModel.setAdaptiveMode(it.currentCondition == ExperimentCondition.SELF_ADAPTIVE_UI)
-                        scope.launch { AppContainer.experimentPreferences.saveSession(it) }
-                        existingSetupSession = null
-                        pendingSetupSession = null
-                        navController.navigate(AppRoute.Home.route) {
-                            popUpTo(AppRoute.ExperimentSetup.route) { inclusive = false }
-                            launchSingleTop = true
+                    existingSetupSession?.let { existingSession ->
+                        scope.launch {
+                            val dao = AppContainer.database.experimentDao()
+                            val ueqDao = AppContainer.database.ueqDao()
+                            val interviewDao = AppContainer.database.interviewDao()
+                            val isProfileCompleted = dao.getInitialUserProfile(existingSession.sessionId) != null
+                            val pendingStep = SessionResumeResolver.resolvePendingStep(
+                                session = existingSession,
+                                experimentDao = dao,
+                                ueqDao = ueqDao,
+                                interviewDao = interviewDao
+                            )
+                            
+                            if (pendingStep.isUeq) {
+                                ueqConditionState = existingSession
+                            }
+                            if (pendingStep.isInterview) {
+                                interviewSessionState = existingSession
+                            }
+                            
+                            val resumedSession = existingSession.copy(
+                                isSessionActive = true,
+                                isProfileCompleted = isProfileCompleted,
+                                currentConditionIndex = pendingStep.targetConditionIndex
+                            )
+                            
+                            withContext(Dispatchers.Main) {
+                                sessionState = resumedSession
+                                adaptiveViewModel.resetState()
+                                adaptiveViewModel.setAdaptiveMode(resumedSession.currentCondition == ExperimentCondition.SELF_ADAPTIVE_UI)
+                                existingSetupSession = null
+                                pendingSetupSession = null
+                            }
+                            AppContainer.experimentPreferences.saveSession(resumedSession)
+                            log(resumedSession.logEntry(InteractionEventType.SESSION_STARTED, screenId = ScreenId.EXPERIMENT_SETUP, message = "Session resumed from code ${resumedSession.participantId}."))
+                            
+                            withContext(Dispatchers.Main) {
+                                navController.navigate(pendingStep.route) {
+                                    popUpTo(AppRoute.ExperimentSetup.route) { inclusive = false }
+                                    launchSingleTop = true
+                                }
+                            }
                         }
                     }
                 },
@@ -564,6 +612,10 @@ fun AppNavHost(
                     onNavigateToSummary = {
                         startTaskIfAllowed(session, TaskId.T5_SUMMARY, AppRoute.Summary.route, "T5 summary started.", navController)
                     },
+                    onNavigateToUeq = {
+                        ueqConditionState = session
+                        navController.navigate(AppRoute.Ueq.route)
+                    },
                     onNavigateToDebugLogs = {
                         log(session.logEntry(InteractionEventType.BUTTON_CLICKED, screenId = ScreenId.HOME, message = "Debug logs opened."))
                         navController.navigate(AppRoute.DebugLogs.route)
@@ -631,6 +683,25 @@ fun AppNavHost(
                         onHideHelp = ::hideHelp,
                         onKeepAdaptation = ::keepLastAdaptation,
                         onTaskCompleted = {
+                            val payload = org.json.JSONObject().apply {
+                                put("participantCode", state.userCode)
+                                put("simulatedAccessCompleted", true)
+                                put("note", "No se usó una cuenta real ni un registro clínico real.")
+                            }.toString()
+                            scope.launch {
+                                AppContainer.database.experimentDao().insertTaskOutput(
+                                    com.angelotacoj.self_adaptive_health_app.core.persistence.room.TaskOutputEntity(
+                                        participantId = session.participantId,
+                                        sessionId = session.sessionId,
+                                        condition = session.currentCondition.name,
+                                        taskId = TaskId.T1_ACCESS.name,
+                                        taskOutputType = "ACCESS",
+                                        payloadJson = payload,
+                                        createdAt = System.currentTimeMillis(),
+                                        updatedAt = System.currentTimeMillis()
+                                    )
+                                )
+                            }
                             viewModel.finishTask()
                             completeTask(TaskId.T1_ACCESS, ScreenId.ACCESS_COMPLETED, "T1 access completed.")
                         },
@@ -663,6 +734,34 @@ fun AppNavHost(
                         onHideHelp = ::hideHelp,
                         onKeepAdaptation = ::keepLastAdaptation,
                         onTaskCompleted = {
+                            val appointment = state.selectedAppointment
+                            val payload = org.json.JSONObject().apply {
+                                put("selectedAppointmentId", appointment?.title)
+                                put("professionalName", appointment?.professionalName)
+                                put("specialty", appointment?.specialty)
+                                put("appointmentDate", appointment?.date)
+                                put("appointmentTime", appointment?.time)
+                                put("simulatedLocation", appointment?.location)
+                                put("mainInstruction", appointment?.instruction)
+                                put("preparationInstruction", appointment?.preparation)
+                                put("itemsToBring", appointment?.itemsToBring)
+                                put("accessibilityNote", appointment?.accessibilityNote)
+                                put("simulationNote", "Esta es una simulación.")
+                            }.toString()
+                            scope.launch {
+                                AppContainer.database.experimentDao().insertTaskOutput(
+                                    com.angelotacoj.self_adaptive_health_app.core.persistence.room.TaskOutputEntity(
+                                        participantId = session.participantId,
+                                        sessionId = session.sessionId,
+                                        condition = session.currentCondition.name,
+                                        taskId = TaskId.T2_APPOINTMENT.name,
+                                        taskOutputType = "APPOINTMENT",
+                                        payloadJson = payload,
+                                        createdAt = System.currentTimeMillis(),
+                                        updatedAt = System.currentTimeMillis()
+                                    )
+                                )
+                            }
                             completeTask(TaskId.T2_APPOINTMENT, ScreenId.APPOINTMENT_COMPLETED, "T2 appointment completed.")
                         },
                         onExit = { navController.popBackStack(AppRoute.Home.route, inclusive = false) }
@@ -685,6 +784,28 @@ fun AppNavHost(
                         onAction = viewModel::onAction,
                         onLog = { type, screen, message ->
                             if (type == InteractionEventType.TASK_COMPLETED) {
+                                val payload = org.json.JSONObject().apply {
+                                    put("energyLevel", state.energyLevel)
+                                    put("mood", state.mood)
+                                    put("note", state.note)
+                                    put("simulatedDate", java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.forLanguageTag("es-ES")).format(java.util.Date()))
+                                    put("completedAt", System.currentTimeMillis())
+                                    put("simulatedHealthData", true)
+                                }.toString()
+                                scope.launch {
+                                    AppContainer.database.experimentDao().insertTaskOutput(
+                                        com.angelotacoj.self_adaptive_health_app.core.persistence.room.TaskOutputEntity(
+                                            participantId = session.participantId,
+                                            sessionId = session.sessionId,
+                                            condition = session.currentCondition.name,
+                                            taskId = TaskId.T3_WELL_BEING.name,
+                                            taskOutputType = "WELLBEING",
+                                            payloadJson = payload,
+                                            createdAt = System.currentTimeMillis(),
+                                            updatedAt = System.currentTimeMillis()
+                                        )
+                                    )
+                                }
                                 completeTask(TaskId.T3_WELL_BEING, screen, message)
                             } else {
                                 log(session.logEntry(type, TaskId.T3_WELL_BEING, screen, message))
@@ -717,6 +838,30 @@ fun AppNavHost(
                         onAction = viewModel::onAction,
                         onLog = { type, screen, message ->
                             if (type == InteractionEventType.TASK_COMPLETED) {
+                                val payload = org.json.JSONObject().apply {
+                                    put("reminderType", state.selectedType)
+                                    put("reminderDate", state.selectedDate)
+                                    put("reminderTime", state.selectedTime)
+                                    put("frequency", state.selectedFrequency)
+                                    put("location", state.optionalLocation)
+                                    put("note", state.optionalNote)
+                                    put("noRealNotification", true)
+                                    put("completedAt", System.currentTimeMillis())
+                                }.toString()
+                                scope.launch {
+                                    AppContainer.database.experimentDao().insertTaskOutput(
+                                        com.angelotacoj.self_adaptive_health_app.core.persistence.room.TaskOutputEntity(
+                                            participantId = session.participantId,
+                                            sessionId = session.sessionId,
+                                            condition = session.currentCondition.name,
+                                            taskId = TaskId.T4_REMINDER.name,
+                                            taskOutputType = "REMINDER",
+                                            payloadJson = payload,
+                                            createdAt = System.currentTimeMillis(),
+                                            updatedAt = System.currentTimeMillis()
+                                        )
+                                    )
+                                }
                                 completeTask(TaskId.T4_REMINDER, screen, message)
                             } else {
                                 log(session.logEntry(type, TaskId.T4_REMINDER, screen, message))
@@ -738,7 +883,14 @@ fun AppNavHost(
             val session = activeSession() ?: returnToSetup(navController)
             if (session != null) {
                 val viewModel: SummaryViewModel = viewModel()
-                viewModel.start(session.currentDataSet)
+                var taskOutputs by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<Map<String, String>>(emptyMap()) }
+                LaunchedEffect(session.sessionId, session.currentCondition) {
+                    val outputs = AppContainer.database.experimentDao().getTaskOutputsForSession(
+                        session.participantId, session.sessionId, session.currentCondition.name
+                    )
+                    taskOutputs = outputs.associate { it.taskId to it.payloadJson }
+                }
+                viewModel.start(taskOutputs)
                 val state by viewModel.state.collectAsStateWithLifecycle()
                 LaunchedEffect(adaptiveUiState, session.currentCondition) {
                     viewModel.onAction(SummaryAction.AdaptiveStateChanged(adaptiveStateFor(session)))
@@ -749,6 +901,24 @@ fun AppNavHost(
                         onAction = viewModel::onAction,
                         onLog = { type, screen, message ->
                             if (type == InteractionEventType.TASK_COMPLETED) {
+                                val payload = org.json.JSONObject().apply {
+                                    put("finalSimulatedInformationConfirmed", true)
+                                    put("timestamp", System.currentTimeMillis())
+                                }.toString()
+                                scope.launch {
+                                    AppContainer.database.experimentDao().insertTaskOutput(
+                                        com.angelotacoj.self_adaptive_health_app.core.persistence.room.TaskOutputEntity(
+                                            participantId = session.participantId,
+                                            sessionId = session.sessionId,
+                                            condition = session.currentCondition.name,
+                                            taskId = TaskId.T5_SUMMARY.name,
+                                            taskOutputType = "FINAL_REVIEW",
+                                            payloadJson = payload,
+                                            createdAt = System.currentTimeMillis(),
+                                            updatedAt = System.currentTimeMillis()
+                                        )
+                                    )
+                                }
                                 completeTask(TaskId.T5_SUMMARY, screen, message)
                             } else {
                                 log(session.logEntry(type, TaskId.T5_SUMMARY, screen, message))
@@ -770,23 +940,26 @@ fun AppNavHost(
             val completed = conditionTransitionState ?: activeSession() ?: returnToSetup(navController)
             if (completed != null) {
                 ScreenContainer(
-                    title = "Bloque de tareas completado",
-                    subtitle = "Ha completado las tareas de esta etapa.",
+                    title = "Primera etapa completada",
+                    subtitle = "Ha completado la primera interfaz y el cuestionario UEQ.",
                     showNotice = false
                 ) {
                     InstructionCard(
-                        "Administrar cuestionario",
-                        listOf("Antes de continuar, el investigador debe aplicar el cuestionario UEQ-S correspondiente a la interfaz que acaba de usar.")
+                        "Continuar con la segunda etapa",
+                        listOf(
+                            "A continuación comenzará la segunda interfaz.",
+                            "Cuando esté listo, pulse el botón para continuar."
+                        )
                     )
                     LargePrimaryButton(
-                        "UEQ-S completado, continuar",
+                        "Continuar con la segunda interfaz",
                         {
                             val next = completed.moveToNextCondition()
                             sessionState = next
                             conditionTransitionState = null
                             applyProfileToAdaptiveState(next)
                             scope.launch { AppContainer.experimentPreferences.saveSession(next) }
-                            log(next.logEntry(InteractionEventType.CONDITION_STARTED, screenId = ScreenId.HOME, message = "Stage ${next.currentConditionIndex + 1} started."))
+                            log(next.logEntry(InteractionEventType.CONDITION_STARTED, screenId = ScreenId.HOME, message = "Etapa ${next.currentConditionIndex + 1} iniciada después de pausa opcional."))
                             MapeKLog.experiment("moving to next condition next=${next.currentCondition}")
                             val returnedToHome = navController.popBackStack(AppRoute.Home.route, inclusive = false)
                             if (!returnedToHome) {
@@ -798,7 +971,155 @@ fun AppNavHost(
                             }
                         }
                     )
+                    Spacer(Modifier.height(16.dp))
+                    LargeSecondaryButton(
+                        "Finalizar por ahora",
+                        {
+                            log(completed.logEntry(InteractionEventType.BUTTON_CLICKED, screenId = ScreenId.HOME, message = "Sesión pausada después de STATIC UEQ."))
+                            sessionState = null
+                            conditionTransitionState = null
+                            scope.launch { AppContainer.experimentPreferences.clearActiveSessionPreferences() }
+                            navController.navigate(AppRoute.ExperimentSetup.route) {
+                                popUpTo(AppRoute.ExperimentSetup.route) { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        }
+                    )
                 }
+            }
+        }
+
+        composable(AppRoute.Ueq.route) {
+            val ueqSession = ueqConditionState ?: activeSession() ?: returnToSetup(navController)
+            if (ueqSession != null) {
+                val viewModel: UeqViewModel = viewModel()
+                val ueqState by viewModel.state.collectAsStateWithLifecycle()
+
+                LaunchedEffect(ueqSession.sessionId, ueqSession.currentCondition) {
+                    viewModel.init(
+                        participantId = ueqSession.participantId,
+                        sessionId = ueqSession.sessionId,
+                        group = ueqSession.group,
+                        condition = ueqSession.currentCondition,
+                        onSaved = {
+                            log(
+                                ueqSession.logEntry(
+                                    eventType = InteractionEventType.UEQ_SAVED,
+                                    screenId = ScreenId.UEQ_QUESTIONNAIRE,
+                                    message = "UEQ guardado para condición ${ueqSession.currentCondition}."
+                                )
+                            )
+                        }
+                    )
+                    log(
+                        ueqSession.logEntry(
+                            eventType = InteractionEventType.UEQ_OPENED,
+                            screenId = ScreenId.UEQ_QUESTIONNAIRE,
+                            message = "UEQ abierto para condición ${ueqSession.currentCondition}."
+                        )
+                    )
+                }
+
+                // Phase C1.5: after final condition UEQ → Interview; after first condition UEQ → ConditionTransition
+                LaunchedEffect(ueqState.isSaved) {
+                    if (ueqState.isSaved) {
+                        kotlinx.coroutines.delay(1500L)
+                        val isFinal = ueqSession.currentConditionIndex == ueqSession.conditionOrder.lastIndex
+                        if (isFinal) {
+                            // Route to short interview after second UEQ
+                            interviewSessionState = ueqSession
+                            navController.navigate(AppRoute.Interview.route) {
+                                popUpTo(AppRoute.Ueq.route) { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        } else {
+                            navController.navigate(AppRoute.ConditionTransition.route) {
+                                popUpTo(AppRoute.Ueq.route) { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        }
+                    }
+                }
+
+                UeqScreen(
+                    state = ueqState,
+                    onEvent = { event ->
+                        if (event is UeqEvent.Submit && !ueqState.allAnswered) {
+                            log(
+                                ueqSession.logEntry(
+                                    eventType = InteractionEventType.UEQ_INCOMPLETE_SUBMIT,
+                                    screenId = ScreenId.UEQ_QUESTIONNAIRE,
+                                    message = "Intento de envío incompleto: ${ueqState.answeredCount}/${ueqState.totalItems} respondidos."
+                                )
+                            )
+                        }
+                        viewModel.onEvent(event)
+                    }
+                )
+            }
+        }
+
+        composable(AppRoute.Interview.route) {
+            val interviewSession = interviewSessionState ?: activeSession() ?: returnToSetup(navController)
+            if (interviewSession != null) {
+                val viewModel: InterviewViewModel = viewModel()
+                val interviewState by viewModel.state.collectAsStateWithLifecycle()
+
+                LaunchedEffect(interviewSession.sessionId) {
+                    viewModel.init(
+                        participantId = interviewSession.participantId,
+                        sessionId = interviewSession.sessionId,
+                        onFinished = {
+                            // onFinished is a callback – navigation happens in isSaved LaunchedEffect below
+                        }
+                    )
+                    log(
+                        interviewSession.logEntry(
+                            eventType = InteractionEventType.INTERVIEW_OPENED,
+                            screenId = ScreenId.INTERVIEW_SCREEN,
+                            message = "Entrevista breve abierta para participante ${interviewSession.participantId}."
+                        )
+                    )
+                }
+
+                LaunchedEffect(interviewState.isSaved) {
+                    if (interviewState.isSaved) {
+                        // Determine whether it was saved or skipped
+                        // (both set isSaved = true; skip path doesn't persist entities)
+                        navController.navigate(AppRoute.SessionCompleted.route) {
+                            popUpTo(AppRoute.Home.route) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
+                }
+
+                InterviewScreen(
+                    state = interviewState,
+                    onEvent = { event ->
+                        when (event) {
+                            is InterviewEvent.Save -> {
+                                log(
+                                    interviewSession.logEntry(
+                                        eventType = InteractionEventType.INTERVIEW_SAVED,
+                                        screenId = ScreenId.INTERVIEW_SCREEN,
+                                        message = "Entrevista guardada para participante ${interviewSession.participantId}."
+                                    )
+                                )
+                            }
+                            is InterviewEvent.Skip -> {
+                                log(
+                                    interviewSession.logEntry(
+                                        eventType = InteractionEventType.INTERVIEW_SKIPPED,
+                                        screenId = ScreenId.INTERVIEW_SCREEN,
+                                        message = "Entrevista omitida para participante ${interviewSession.participantId}."
+                                    )
+                                )
+                            }
+                            else -> Unit
+                        }
+                        viewModel.onEvent(event)
+                    }
+                )
             }
         }
 
@@ -812,10 +1133,11 @@ fun AppNavHost(
                 InstructionCard(
                     "Gracias",
                     listOf(
-                        "El participante completó ambos bloques de tareas.",
-                        "Ahora el investigador puede aplicar la entrevista o formulario cualitativo final."
+                        "El participante completó ambos bloques de tareas, los cuestionarios UEQ y la entrevista.",
+                        "El investigador puede acceder al panel para revisar los datos registrados."
                     )
                 )
+
                 LargePrimaryButton(
                     "Panel del investigador",
                     { navController.navigate(AppRoute.DebugLogs.route) }
@@ -840,6 +1162,8 @@ fun AppNavHost(
                             MapeKLog.stage("SECURITY", "delete requested type=CURRENT_SESSION")
                             MapeKLog.stage("SECURITY", "pin validation result=SUCCESS")
                             AppContainer.database.experimentDao().deleteSessionCascade(current.sessionId)
+                            AppContainer.database.ueqDao().deleteResponsesForSession(current.sessionId)
+                            AppContainer.database.interviewDao().deleteResponsesForSession(current.sessionId)
                             AppContainer.experimentPreferences.clearActiveSessionPreferences()
                             knowledge.clearCurrentTaskAdaptationMemory()
                             sessionState = null
@@ -858,6 +1182,8 @@ fun AppNavHost(
                         MapeKLog.stage("SECURITY", "delete requested type=ALL_RESEARCH_DATA")
                         MapeKLog.stage("SECURITY", "pin validation result=SUCCESS")
                         AppContainer.database.experimentDao().deleteAllResearchData()
+                        AppContainer.database.ueqDao().deleteAllUeqResponses()
+                        AppContainer.database.interviewDao().deleteAllResponses()
                         AppContainer.experimentPreferences.clearActiveSessionPreferences()
                         knowledge.clearCurrentTaskAdaptationMemory()
                         logger.clear()

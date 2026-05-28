@@ -135,6 +135,8 @@ interface ExperimentDao {
         deleteTaskRunsForSession(sessionId)
         deleteInitialUserProfileForSession(sessionId)
         deleteParticipantSession(sessionId)
+        // Note: UEQ responses for this session are deleted separately via UeqDao
+        // (see AppNavHost.deleteSessionCascade where both DAOs are accessible)
     }
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -188,7 +190,23 @@ interface ExperimentDao {
     @Query("DELETE FROM initial_user_profiles")
     suspend fun clearInitialUserProfiles()
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTaskOutput(entity: TaskOutputEntity)
+
+    @Query("SELECT * FROM task_outputs WHERE participantId = :participantId AND sessionId = :sessionId AND condition = :condition AND taskId = :taskId LIMIT 1")
+    suspend fun getTaskOutput(participantId: String, sessionId: String, condition: String, taskId: String): TaskOutputEntity?
+
+    @Query("SELECT * FROM task_outputs WHERE participantId = :participantId AND sessionId = :sessionId AND condition = :condition")
+    suspend fun getTaskOutputsForSession(participantId: String, sessionId: String, condition: String): List<TaskOutputEntity>
+
+    @Query("DELETE FROM task_outputs WHERE sessionId = :sessionId")
+    suspend fun deleteTaskOutputsForSession(sessionId: String)
+
+    @Query("DELETE FROM task_outputs")
+    suspend fun clearTaskOutputs()
+
     suspend fun clearAll() {
+        clearTaskOutputs()
         clearInitialUserProfiles()
         clearUserDecisionEvents()
         clearAdaptationEvents()

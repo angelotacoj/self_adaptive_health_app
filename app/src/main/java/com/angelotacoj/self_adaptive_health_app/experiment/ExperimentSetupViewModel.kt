@@ -6,17 +6,23 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
+/**
+ * Phase C1.5: Group selection has been removed from the setup flow.
+ *
+ * All participants follow the fixed order: STATIC_UI → SELF_ADAPTIVE_UI.
+ * [ExperimentGroup.GroupA] is stored as a stable legacy value for export/traceability.
+ * The UI no longer shows group picker cards.
+ */
 data class ExperimentSetupState(
     val participantSuffix: String = "",
-    val selectedGroup: ExperimentGroup = ExperimentGroup.GroupA,
     val errorMessage: String? = null
 ) {
-    val selectedOrder: String = selectedGroup.orderDescription
+    /** Fixed legacy group – stored for data traceability, not used for ordering. */
+    val legacyGroup: ExperimentGroup = ExperimentGroup.GroupA
 }
 
 sealed interface ExperimentSetupAction {
     data class ParticipantSuffixChanged(val value: String) : ExperimentSetupAction
-    data class GroupSelected(val group: ExperimentGroup) : ExperimentSetupAction
     data object StartSessionClicked : ExperimentSetupAction
 }
 
@@ -39,20 +45,15 @@ class ExperimentSetupViewModel : ViewModel() {
                 null
             }
 
-            is ExperimentSetupAction.GroupSelected -> {
-                _state.value = _state.value.copy(selectedGroup = action.group, errorMessage = null)
-                null
-            }
-
             ExperimentSetupAction.StartSessionClicked -> {
-                val suffix = _state.value.participantSuffix.trim()
-                if (suffix.length != 4 || !suffix.all { it.isLetterOrDigit() }) {
+                val code = _state.value.participantSuffix.trim()
+                if (code.length != 4 || !code.all { it.isLetterOrDigit() }) {
                     _state.value = _state.value.copy(errorMessage = "Ingrese exactamente 4 caracteres alfanuméricos.")
                     null
                 } else {
                     ExperimentSetupEvent.StartSession(
-                        suffix = suffix,
-                        group = _state.value.selectedGroup
+                        suffix = code,
+                        group = _state.value.legacyGroup   // always GroupA (fixed order)
                     )
                 }
             }

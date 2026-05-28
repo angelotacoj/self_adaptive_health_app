@@ -2,7 +2,6 @@ package com.angelotacoj.self_adaptive_health_app.healthtasks.summary
 
 import androidx.lifecycle.ViewModel
 import com.angelotacoj.self_adaptive_health_app.adaptive.presentation.state.AdaptiveUiState
-import com.angelotacoj.self_adaptive_health_app.core.model.FakeHealthDataSet
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -21,7 +20,7 @@ enum class SummaryResult {
 }
 
 data class SummaryState(
-    val dataSet: FakeHealthDataSet,
+    val taskOutputs: Map<String, String>,
     val step: SummaryStep = SummaryStep.Intro,
     val result: SummaryResult? = null,
     val editNote: String = "",
@@ -46,9 +45,9 @@ class SummaryViewModel : ViewModel() {
     private val _state = MutableStateFlow<SummaryState?>(null)
     val state: StateFlow<SummaryState?> = _state.asStateFlow()
 
-    fun start(dataSet: FakeHealthDataSet) {
-        if (_state.value?.dataSet?.id != dataSet.id) {
-            _state.value = SummaryState(dataSet = dataSet)
+    fun start(taskOutputs: Map<String, String>) {
+        if (_state.value?.taskOutputs != taskOutputs) {
+            _state.value = SummaryState(taskOutputs = taskOutputs)
         }
     }
 

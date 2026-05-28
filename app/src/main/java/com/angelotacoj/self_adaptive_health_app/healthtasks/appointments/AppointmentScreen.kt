@@ -107,17 +107,43 @@ fun AppointmentScreen(
             AppointmentStep.Detail -> {
                 val appointment = state.selectedAppointment ?: state.targetAppointment
                 TaskProgressHeader("Paso 3 de 4", "Detalle de la cita", adaptiveUiState = state.adaptiveUiState)
+                
+                com.angelotacoj.self_adaptive_health_app.core.ui.NoticeBanner(
+                    message = appointment.simulationDisclaimer,
+                    isError = false
+                )
+
                 SummaryReviewCard(
-                    title = appointment.title,
+                    title = "Información del Especialista",
+                    rows = listOf(
+                        "Profesional" to appointment.professionalName,
+                        "Especialidad" to appointment.specialty
+                    ),
+                    adaptiveUiState = state.adaptiveUiState
+                )
+                
+                SummaryReviewCard(
+                    title = "Horario y Ubicación",
                     rows = listOf(
                         "Fecha" to appointment.date,
                         "Hora" to appointment.time,
-                        "Indicación" to appointment.instruction
+                        "Ubicación" to appointment.location,
+                        "Accesibilidad" to appointment.accessibilityNote
+                    ),
+                    adaptiveUiState = state.adaptiveUiState
+                )
+                
+                SummaryReviewCard(
+                    title = "Instrucciones",
+                    rows = listOf(
+                        "Preparación" to appointment.preparation,
+                        "Traer" to appointment.itemsToBring,
+                        "Indicación Principal" to appointment.instruction
                     ),
                     adaptiveUiState = state.adaptiveUiState
                 )
                 ButtonRow(
-                    primaryText = "Continuar a confirmación",
+                    primaryText = "Confirmé la información",
                     onPrimary = {
                         onLog(InteractionEventType.BUTTON_CLICKED, screenId, "Appointment detail reviewed.")
                         onAction(AppointmentAction.ContinueFromDetailClicked)
@@ -136,10 +162,10 @@ fun AppointmentScreen(
             AppointmentStep.Confirmation -> {
                 TaskProgressHeader("Paso 4 de 4", "Pregunta de confirmación", adaptiveUiState = state.adaptiveUiState)
                 if (state.adaptiveUiState.contextualHelpVisible || state.adaptiveUiState.guidedModeEnabled) {
-                    InstructionCard("¿Encontró la fecha, la hora y la indicación?", listOf("Si no está seguro, puede revisar el detalle nuevamente."), adaptiveUiState = state.adaptiveUiState)
+                    InstructionCard("¿Identificó la fecha, la hora y la indicación principal?", listOf("Esta es una consulta simulada. Si necesita volver a leer, elija 'Revisar nuevamente'."), adaptiveUiState = state.adaptiveUiState)
                 }
                 ButtonRow(
-                    primaryText = "Sí, continuar",
+                    primaryText = "Entendido, completar tarea",
                     onPrimary = {
                         onLog(InteractionEventType.TASK_COMPLETED, screenId, "T2 completed.")
                         onAction(AppointmentAction.ConfirmFoundClicked)
@@ -173,7 +199,7 @@ private fun AppointmentOptionCard(
 ) {
     SummaryReviewCard(
         title = appointment.title,
-        rows = listOf("Fecha" to appointment.date, "Hora" to appointment.time, "Indicación" to appointment.instruction),
+        rows = listOf("Fecha" to appointment.date, "Hora" to appointment.time),
         adaptiveUiState = adaptiveUiState
     )
     LargePrimaryButton("Abrir ${appointment.title}", onClick, adaptiveUiState = adaptiveUiState)

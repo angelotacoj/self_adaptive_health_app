@@ -15,7 +15,9 @@ import com.angelotacoj.self_adaptive_health_app.core.logging.TaskId
 import com.angelotacoj.self_adaptive_health_app.core.model.ExperimentTasksPerCondition
 import com.angelotacoj.self_adaptive_health_app.core.model.isTaskAvailableInCurrentCondition
 import com.angelotacoj.self_adaptive_health_app.core.model.isTaskCompletedInCurrentCondition
+import com.angelotacoj.self_adaptive_health_app.core.model.isCurrentConditionComplete
 import com.angelotacoj.self_adaptive_health_app.core.ui.HeroHeaderCard
+import com.angelotacoj.self_adaptive_health_app.core.ui.LargePrimaryButton
 import com.angelotacoj.self_adaptive_health_app.core.ui.LargeDestructiveButton
 import com.angelotacoj.self_adaptive_health_app.core.ui.LargeSecondaryButton
 import com.angelotacoj.self_adaptive_health_app.core.ui.ScreenContainer
@@ -33,12 +35,14 @@ fun HomeScreen(
     onNavigateToWellBeing: () -> Unit,
     onNavigateToReminders: () -> Unit,
     onNavigateToSummary: () -> Unit,
+    onNavigateToUeq: () -> Unit,
     onNavigateToDebugLogs: () -> Unit,
     onNavigateToSetup: () -> Unit,
     onHelpRequested: () -> Unit
 ) {
     if (uiState.showCancelSessionConfirmation) {
         AlertDialog(
+            containerColor = Color.White,
             onDismissRequest = { onAction(HomeAction.DismissCancelSessionClicked) },
             title = { Text("Cancelar sesión") },
             text = { Text("¿Desea cancelar la sesión experimental y volver a la configuración?") },
@@ -76,6 +80,7 @@ fun HomeScreen(
                 HomeEvent.OpenWellBeing -> onNavigateToWellBeing()
                 HomeEvent.OpenReminders -> onNavigateToReminders()
                 HomeEvent.OpenSummary -> onNavigateToSummary()
+                HomeEvent.OpenUeq -> onNavigateToUeq()
                 HomeEvent.OpenDebugLogs -> onNavigateToDebugLogs()
                 HomeEvent.HelpRequested -> onHelpRequested()
                 HomeEvent.NavigateToSetup -> onNavigateToSetup()
@@ -106,7 +111,7 @@ fun HomeScreen(
         )
 
         TaskCard(
-            title = "T1 Acceder con código/PIN simulado",
+            title = "Tarea 1: Acceder con código/PIN simulado",
             description = "Use un código y PIN ficticios para acceder a la aplicación.",
             buttonText = state.buttonTextFor(TaskId.T1_ACCESS),
             onClick = { onAction(HomeAction.AccessTaskClicked) },
@@ -115,7 +120,7 @@ fun HomeScreen(
             startButtonTestTag = "start_t1_access"
         )
         TaskCard(
-            title = "T2 Consultar cita médica",
+            title = "Tarea 2: Consultar cita médica",
             description = "Revise los detalles de su próxima cita médica ficticia.",
             buttonText = state.buttonTextFor(TaskId.T2_APPOINTMENT),
             onClick = { onAction(HomeAction.ConsultAppointmentClicked) },
@@ -124,7 +129,7 @@ fun HomeScreen(
             startButtonTestTag = "start_t2_appointment"
         )
         TaskCard(
-            title = "T3 Registro de bienestar",
+            title = "Tarea 3: Registro de bienestar",
             description = "Ingrese un valor simulado, valídelo y guarde el registro ficticio.",
             buttonText = state.buttonTextFor(TaskId.T3_WELL_BEING),
             onClick = { onAction(HomeAction.RegisterWellBeingClicked) },
@@ -133,7 +138,7 @@ fun HomeScreen(
             startButtonTestTag = "start_t3_wellbeing"
         )
         TaskCard(
-            title = "T4 Recordatorio",
+            title = "Tarea 4: Recordatorio",
             description = "Configure un recordatorio ficticio seleccionando actividad, hora y frecuencia.",
             buttonText = state.buttonTextFor(TaskId.T4_REMINDER),
             onClick = { onAction(HomeAction.ConfigureReminderClicked) },
@@ -142,7 +147,7 @@ fun HomeScreen(
             startButtonTestTag = "start_t4_reminder"
         )
         TaskCard(
-            title = "T5 Revisar y confirmar",
+            title = "Tarea 5: Revisar y confirmar",
             description = "Revise la información simulada y confirme el guardado final.",
             buttonText = state.buttonTextFor(TaskId.T5_SUMMARY),
             onClick = { onAction(HomeAction.ReviewInformationClicked) },
@@ -150,6 +155,12 @@ fun HomeScreen(
             enabled = state.isAvailable(TaskId.T5_SUMMARY),
             startButtonTestTag = "start_t5_summary"
         )
+        if (state.session.isCurrentConditionComplete()) {
+            LargePrimaryButton(
+                text = "Continuar con el UEQ",
+                onClick = { onAction(HomeAction.ContinueToUeqClicked) }
+            )
+        }
         if (state.session.currentCondition == ExperimentCondition.SELF_ADAPTIVE_UI) {
             LargeSecondaryButton(
                 text = "Ayuda: explicar esta sesión",

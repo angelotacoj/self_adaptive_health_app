@@ -75,7 +75,7 @@ class AccessViewModel : ViewModel() {
             }
 
             is AccessAction.SimulatedPinChanged -> {
-                _state.value = current.copy(simulatedPin = action.value.filter { it.isDigit() }.take(4), errorMessage = null, errorField = null)
+                _state.value = current.copy(simulatedPin = action.value.filter { it.isDigit() }.take(6), errorMessage = null, errorField = null)
                 null
             }
 

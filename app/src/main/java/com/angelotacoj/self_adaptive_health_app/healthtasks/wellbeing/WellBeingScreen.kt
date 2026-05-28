@@ -6,6 +6,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.engine.AdaptiveTiming
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.AdaptiveInteractionEventType
@@ -78,17 +84,23 @@ fun WellBeingScreen(
 
         when (state.step) {
             WellBeingStep.Intro -> {
-                TaskProgressHeader("Paso 1 de 5", "Introducción", adaptiveUiState = state.adaptiveUiState)
+                TaskProgressHeader("Paso 1 de 4", "Introducción", adaptiveUiState = state.adaptiveUiState)
+                
+                com.angelotacoj.self_adaptive_health_app.core.ui.NoticeBanner(
+                    message = "Esta es una simulación. No se registrará información médica real.",
+                    isError = false
+                )
+
                 InstructionCard(
                     if (state.adaptiveUiState.isAdaptiveMode) "Instrucciones de la tarea" else "Dato asignado",
                     if (state.adaptiveUiState.isAdaptiveMode) {
                         listOf(
-                            "Use el valor ficticio asignado.",
-                            "${state.label}: ${state.suggestedValue}",
-                            "Rango aceptado: 1 a 10."
+                            "Registre un valor ficticio.",
+                            "Nivel de energía: 1 al 10.",
+                            "Estado de ánimo simulado."
                         )
                     } else {
-                        listOf("${state.label}: ${state.suggestedValue}")
+                        listOf("Registro de bienestar ficticio")
                     },
                     adaptiveUiState = state.adaptiveUiState
                 )
@@ -98,28 +110,64 @@ fun WellBeingScreen(
                 }
             }
             WellBeingStep.Form -> {
-                TaskProgressHeader("Paso 2 de 5", "Formulario de datos ficticios", adaptiveUiState = state.adaptiveUiState)
-                OutlinedTextField(
-                    value = state.valueText,
-                    onValueChange = { onAction(WellBeingAction.ValueChanged(it)) },
-                    label = { Text(state.label) },
-                    supportingText = { Text(if (state.adaptiveUiState.contextualHelpVisible) "Ingrese un número del 1 al 10. Ejemplo: ${state.suggestedValue}" else "Número del 1 al 10") },
-                    textStyle = if (state.adaptiveUiState.isAdaptiveMode) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.bodyLarge,
-                    isError = state.errorMessage != null
+                TaskProgressHeader("Paso 2 de 4", "Formulario de datos ficticios", adaptiveUiState = state.adaptiveUiState)
+                
+                com.angelotacoj.self_adaptive_health_app.core.ui.NoticeBanner(
+                    message = "Simulación: No ingrese datos reales.",
+                    isError = false
                 )
+
+                OutlinedTextField(
+                    value = state.energyLevel,
+                    onValueChange = { onAction(WellBeingAction.EnergyLevelChanged(it)) },
+                    label = { Text("Nivel de energía simulado (1 al 10)") },
+                    supportingText = { Text(if (state.adaptiveUiState.contextualHelpVisible) "Ingrese un número del 1 al 10." else "Número del 1 al 10") },
+                    textStyle = if (state.adaptiveUiState.isAdaptiveMode) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.bodyLarge,
+                    isError = state.errorMessage != null && state.errorMessage.contains("energía"),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                )
+                
+                Text(
+                    text = "Estado de ánimo simulado",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                
+                val moods = listOf("Tranquilo", "Cansado", "Animado", "Neutral")
+                moods.forEach { option ->
+                    com.angelotacoj.self_adaptive_health_app.core.ui.CheckableOptionRow(
+                        label = option,
+                        selected = state.mood == option,
+                        onClick = { onAction(WellBeingAction.MoodSelected(option)) }
+                    )
+                }
+
+                Spacer(Modifier.height(16.dp))
+
+                OutlinedTextField(
+                    value = state.note,
+                    onValueChange = { onAction(WellBeingAction.NoteChanged(it)) },
+                    label = { Text("Observación (opcional)") },
+                    textStyle = if (state.adaptiveUiState.isAdaptiveMode) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                )
+
                 if (state.errorMessage != null) {
-                    Text(state.errorMessage, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyLarge)
-                    if (state.adaptiveUiState.contextualHelpVisible || state.fieldErrorCount >= 2) Text("Ejemplo: ingrese ${state.suggestedValue}.", style = MaterialTheme.typography.bodyLarge)
+                    com.angelotacoj.self_adaptive_health_app.core.ui.NoticeBanner(
+                        message = state.errorMessage,
+                        isError = true
+                    )
+                    if (state.adaptiveUiState.contextualHelpVisible || state.fieldErrorCount >= 2) Text("Por favor corrija los errores marcados.", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.error)
                 }
                 ButtonRow(
-                    primaryText = "Validar valor",
+                    primaryText = "Revisar registro",
                     onPrimary = {
-                        val value = state.valueText.toIntOrNull()
-                        if (value == null || value !in 1..10) {
+                        val energy = state.energyLevel.toIntOrNull()
+                        if (energy == null || energy !in 1..10 || state.mood.isBlank()) {
                             onLog(InteractionEventType.FIELD_ERROR, screenId, "Invalid fictitious value entered. Exact value not logged.")
                             onAdaptiveEvent(AdaptiveInteractionEventType.FIELD_ERROR, screenId)
                         }
-                        onAction(WellBeingAction.ValidateClicked)
+                        onAction(WellBeingAction.ValidateAndReviewClicked)
                     },
                     secondaryText = if (state.adaptiveUiState.safeExitEnabled) "Cancelar" else "Atrás",
                     onSecondary = {
@@ -133,18 +181,18 @@ fun WellBeingScreen(
                     adaptiveUiState = state.adaptiveUiState
                 )
             }
-            WellBeingStep.Validation -> {
-                TaskProgressHeader("Paso 3 de 5", "Validación", adaptiveUiState = state.adaptiveUiState)
-                InstructionCard("Valor aceptado", listOf("El valor ficticio está dentro del rango aceptado.", "Continúe para revisar antes de guardar."), adaptiveUiState = state.adaptiveUiState)
-                LargePrimaryButton("Revisar antes de guardar", { onAction(WellBeingAction.ContinueToReviewClicked) }, adaptiveUiState = state.adaptiveUiState)
-            }
             WellBeingStep.Review -> {
-                TaskProgressHeader("Paso 4 de 5", "Revisión antes de guardar", adaptiveUiState = state.adaptiveUiState)
-                SummaryReviewCard("Esta información es simulada", listOf(state.label to state.valueText), adaptiveUiState = state.adaptiveUiState)
+                TaskProgressHeader("Paso 3 de 4", "Revisión del registro simulado", adaptiveUiState = state.adaptiveUiState)
+                SummaryReviewCard("Información ficticia", listOf(
+                    "Energía (1-10)" to state.energyLevel,
+                    "Estado de ánimo" to state.mood,
+                    "Observación" to (state.note.takeIf { it.isNotBlank() } ?: "Ninguna"),
+                    "Fecha simulada" to java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.forLanguageTag("es-ES")).format(java.util.Date())
+                ), adaptiveUiState = state.adaptiveUiState)
                 ButtonRow(
-                    primaryText = "Guardar",
+                    primaryText = "Guardar registro simulado",
                     onPrimary = {
-                        onLog(InteractionEventType.SENSITIVE_ACTION, screenId, "Attempted to save simulated well-being record. Exact value not logged.")
+                        onLog(InteractionEventType.SENSITIVE_ACTION, screenId, "Attempted to save simulated well-being record.")
                         val requiresValidation = onAdaptiveEvent(AdaptiveInteractionEventType.SENSITIVE_ACTION, screenId)
                         if (!requiresValidation) {
                             onAction(WellBeingAction.SaveClicked)
@@ -160,7 +208,7 @@ fun WellBeingScreen(
                 }
             }
             WellBeingStep.Success -> {
-                TaskProgressHeader("Paso 5 de 5", "Mensaje de éxito", adaptiveUiState = state.adaptiveUiState)
+                TaskProgressHeader("Paso 4 de 4", "Mensaje de éxito", adaptiveUiState = state.adaptiveUiState)
                 InstructionCard("Registro ficticio guardado", listOf("Este valor simulado no fue almacenado como dato clínico."), adaptiveUiState = state.adaptiveUiState)
                 LargePrimaryButton("Volver al inicio", onExit, adaptiveUiState = state.adaptiveUiState)
             }
@@ -172,7 +220,6 @@ private fun WellBeingStep.toScreenId(): ScreenId {
     return when (this) {
         WellBeingStep.Intro -> ScreenId.WELL_BEING_INTRO
         WellBeingStep.Form -> ScreenId.WELL_BEING_FORM
-        WellBeingStep.Validation -> ScreenId.WELL_BEING_VALIDATION
         WellBeingStep.Review -> ScreenId.WELL_BEING_REVIEW
         WellBeingStep.Success -> ScreenId.WELL_BEING_SUCCESS
     }

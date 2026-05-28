@@ -35,6 +35,7 @@ sealed interface HomeAction {
     data object CancelSessionClicked : HomeAction
     data object DismissCancelSessionClicked : HomeAction
     data object ConfirmCancelSessionClicked : HomeAction
+    data object ContinueToUeqClicked : HomeAction
 }
 
 sealed interface HomeEvent {
@@ -46,6 +47,7 @@ sealed interface HomeEvent {
     data object OpenDebugLogs : HomeEvent
     data object HelpRequested : HomeEvent
     data object NavigateToSetup : HomeEvent
+    data object OpenUeq : HomeEvent
 }
 
 class HomeViewModel : ViewModel() {
@@ -75,6 +77,7 @@ class HomeViewModel : ViewModel() {
             HomeAction.ConfigureReminderClicked -> HomeEvent.OpenReminders
             HomeAction.ReviewInformationClicked -> HomeEvent.OpenSummary
             HomeAction.ViewDebugLogsClicked -> HomeEvent.OpenDebugLogs
+            HomeAction.ContinueToUeqClicked -> HomeEvent.OpenUeq
             HomeAction.HelpClicked -> {
                 _uiState.value = _uiState.value.copy(showSessionHelp = true)
                 HomeEvent.HelpRequested

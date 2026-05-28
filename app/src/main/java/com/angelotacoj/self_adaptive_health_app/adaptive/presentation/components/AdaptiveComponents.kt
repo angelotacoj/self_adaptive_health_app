@@ -228,6 +228,7 @@ fun UndoAdaptationCard(
     }
     if (showDetails) {
         AlertDialog(
+            containerColor = Color.White,
             onDismissRequest = { showDetails = false },
             shape = RoundedCornerShape(28.dp),
             title = { Text("Qué cambió en la interfaz", style = MaterialTheme.typography.titleLarge.scaled(adaptiveUiState)) },

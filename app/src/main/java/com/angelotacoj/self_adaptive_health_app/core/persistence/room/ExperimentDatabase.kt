@@ -4,6 +4,10 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import com.angelotacoj.self_adaptive_health_app.interview.persistence.InterviewDao
+import com.angelotacoj.self_adaptive_health_app.interview.persistence.InterviewResponseEntity
+import com.angelotacoj.self_adaptive_health_app.ueq.persistence.UeqDao
+import com.angelotacoj.self_adaptive_health_app.ueq.persistence.UeqResponseEntity
 
 @Database(
     entities = [
@@ -14,46 +18,29 @@ import androidx.room.RoomDatabase
         UserDecisionEventEntity::class,
         AdaptationPreferenceEntity::class,
         TaskStateEntity::class,
-        InitialUserProfileEntity::class
+        InitialUserProfileEntity::class,
+        TaskOutputEntity::class,
+        UeqResponseEntity::class,              // Phase C1: UEQ full 26-item responses
+        InterviewResponseEntity::class         // Phase C1.5: short semi-structured interview
     ],
-    version = 2,
+    version = 1,
     exportSchema = false
 )
 abstract class ExperimentDatabase : RoomDatabase() {
     abstract fun experimentDao(): ExperimentDao
+    abstract fun ueqDao(): UeqDao              // Phase C1
+    abstract fun interviewDao(): InterviewDao  // Phase C1.5
 
     companion object {
         @Volatile private var instance: ExperimentDatabase? = null
-
-        private val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
-            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
-                // Drop the old table and recreate since we changed primary keys and columns
-                db.execSQL("DROP TABLE IF EXISTS `adaptation_preferences`")
-                db.execSQL("""
-                    CREATE TABLE IF NOT EXISTS `adaptation_preferences` (
-                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-                        `ruleId` TEXT NOT NULL,
-                        `targetLevel` INTEGER NOT NULL,
-                        `scope` TEXT NOT NULL,
-                        `taskId` TEXT,
-                        `screenId` TEXT,
-                        `rejectedCount` INTEGER NOT NULL,
-                        `lastRejectedAt` INTEGER NOT NULL,
-                        `suppressAutomatic` INTEGER NOT NULL
-                    )
-                """)
-                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_adaptation_preferences_ruleId_targetLevel_scope_taskId` ON `adaptation_preferences` (`ruleId`, `targetLevel`, `scope`, `taskId`)")
-            }
-        }
 
         fun getInstance(context: Context): ExperimentDatabase {
             return instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
                     context.applicationContext,
                     ExperimentDatabase::class.java,
-                    "aura_experiment.db"
+                    "experiment_database"
                 )
-                .addMigrations(MIGRATION_1_2)
                 .build().also { instance = it }
             }
         }
