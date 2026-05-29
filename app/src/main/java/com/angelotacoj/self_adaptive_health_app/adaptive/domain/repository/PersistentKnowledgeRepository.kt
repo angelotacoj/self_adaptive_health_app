@@ -25,7 +25,10 @@ class PersistentKnowledgeRepository(
 ) : InMemoryKnowledgeRepository() {
     override suspend fun getCurrentSession(): String? {
         val snapshot = preferences.sessionSnapshot.first()
-        return snapshot.participantId?.let { "${it}_${snapshot.currentDataSet ?: "dataset"}" }
+        // Use the persisted sessionId directly — it is set by AppNavHost when the session starts.
+        // The previous construction ("${participantId}_${dataSet}") was incorrect and caused
+        // interaction events to be stored under a key that never matched any participant_sessions row.
+        return snapshot.currentSessionId
     }
 
     override suspend fun getCurrentCondition(): String? {

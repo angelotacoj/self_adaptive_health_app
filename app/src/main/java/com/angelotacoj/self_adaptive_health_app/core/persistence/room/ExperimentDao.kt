@@ -205,6 +205,29 @@ interface ExperimentDao {
     @Query("DELETE FROM task_outputs")
     suspend fun clearTaskOutputs()
 
+    // ---- Phase C2 JSON Export queries (full-table, no limit) ----
+
+    @Query("SELECT * FROM participant_sessions ORDER BY startedAt ASC")
+    suspend fun getAllParticipantSessions(): List<ParticipantSessionEntity>
+
+    @Query("SELECT * FROM task_runs ORDER BY startedAt ASC")
+    suspend fun getAllTaskRuns(): List<TaskRunEntity>
+
+    @Query("SELECT * FROM interaction_events ORDER BY timestamp ASC")
+    suspend fun getAllInteractionEvents(): List<InteractionEventEntity>
+
+    @Query("SELECT * FROM adaptation_events ORDER BY timestamp ASC")
+    suspend fun getAllAdaptationEvents(): List<AdaptationEventEntity>
+
+    @Query("SELECT * FROM user_decision_events ORDER BY timestamp ASC")
+    suspend fun getAllUserDecisionEvents(): List<UserDecisionEventEntity>
+
+    @Query("SELECT * FROM task_outputs ORDER BY sessionId ASC, condition ASC, taskId ASC")
+    suspend fun getAllTaskOutputs(): List<TaskOutputEntity>
+
+    @Query("SELECT * FROM initial_user_profiles ORDER BY timestamp ASC")
+    suspend fun getAllInitialUserProfiles(): List<InitialUserProfileEntity>
+
     suspend fun clearAll() {
         clearTaskOutputs()
         clearInitialUserProfiles()

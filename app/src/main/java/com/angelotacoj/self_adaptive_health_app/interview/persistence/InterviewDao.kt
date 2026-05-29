@@ -63,6 +63,10 @@ interface InterviewDao {
     @Query("DELETE FROM interview_status WHERE sessionId = :sessionId")
     suspend fun deleteInterviewStatusForSession(sessionId: String)
 
+    /** Full table – used for Phase C2 JSON export. */
+    @Query("SELECT * FROM interview_status ORDER BY timestamp ASC")
+    suspend fun getAllInterviewStatuses(): List<InterviewStatusEntity>
+
     /** Delete all interview statuses (researcher panel wipe). */
     @Query("DELETE FROM interview_status")
     suspend fun deleteAllInterviewStatuses()

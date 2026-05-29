@@ -87,6 +87,9 @@ import com.angelotacoj.self_adaptive_health_app.ueq.presentation.UeqEvent
 import com.angelotacoj.self_adaptive_health_app.ueq.presentation.UeqScreen
 import com.angelotacoj.self_adaptive_health_app.ueq.presentation.UeqViewModel
 import com.angelotacoj.self_adaptive_health_app.ui.theme.Self_Adaptive_Health_AppTheme
+import com.angelotacoj.self_adaptive_health_app.export.DataExportManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -138,6 +141,40 @@ fun AppNavHost(
     var interviewSessionState by remember { mutableStateOf<ExperimentSessionState?>(null) }
     val logger = AppContainer.experimentLogger
     val scope = rememberCoroutineScope()
+
+    // ── Phase C2: JSON Export via Storage Access Framework ───────────────────
+    // Pending callbacks set when the evaluator taps "Exportar datos del estudio"
+    var pendingExportSuccess by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var pendingExportFailure by remember { mutableStateOf<(() -> Unit)?>(null) }
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        val onSuccess = pendingExportSuccess
+        val onFailure = pendingExportFailure
+        pendingExportSuccess = null
+        pendingExportFailure = null
+        if (uri == null) {
+            MapeKLog.experiment("export cancelled by user")
+            onFailure?.invoke()
+            return@rememberLauncherForActivityResult
+        }
+        scope.launch(Dispatchers.IO) {
+            val exportManager = DataExportManager(
+                experimentDao = AppContainer.database.experimentDao(),
+                ueqDao        = AppContainer.database.ueqDao(),
+                interviewDao  = AppContainer.database.interviewDao(),
+                context       = context
+            )
+            val result = exportManager.exportToUri(uri)
+            withContext(Dispatchers.Main) {
+                when (result) {
+                    is DataExportManager.ExportResult.Success -> onSuccess?.invoke()
+                    is DataExportManager.ExportResult.Failure -> onFailure?.invoke()
+                }
+            }
+        }
+    }
 
     LaunchedEffect(adaptiveUiState.snackbarMessage) {
         adaptiveUiState.snackbarMessage?.let { message ->
@@ -1197,6 +1234,11 @@ fun AppNavHost(
                             restoreState = false
                         }
                     }
+                },
+                onExportData = { suggestedFilename, onSuccess, onFailure ->
+                    pendingExportSuccess = onSuccess
+                    pendingExportFailure = onFailure
+                    exportLauncher.launch(suggestedFilename)
                 },
                 onBack = { navController.popBackStack() }
             )

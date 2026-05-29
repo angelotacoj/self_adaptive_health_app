@@ -1,11 +1,13 @@
 package com.angelotacoj.self_adaptive_health_app.debug
 
+import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,6 +28,7 @@ import com.angelotacoj.self_adaptive_health_app.core.model.completedTaskCount
 import com.angelotacoj.self_adaptive_health_app.core.model.totalRequiredTaskRuns
 import com.angelotacoj.self_adaptive_health_app.di.AppContainer
 import com.angelotacoj.self_adaptive_health_app.core.ui.LargeDestructiveButton
+import com.angelotacoj.self_adaptive_health_app.core.ui.LargePrimaryButton
 import com.angelotacoj.self_adaptive_health_app.core.ui.ScreenContainer
 import com.angelotacoj.self_adaptive_health_app.core.security.ResearcherPinDialog
 import com.angelotacoj.self_adaptive_health_app.core.persistence.room.InitialUserProfileEntity
@@ -33,12 +36,20 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+/** Status of the JSON export operation shown to the evaluator. */
+private enum class ExportStatus { Idle, Exporting, Success, Failed }
+
 @Composable
 fun DebugLogsScreen(
     logger: ExperimentLogger,
     session: ExperimentSessionState?,
     onDeleteCurrentSession: () -> Unit,
     onDeleteAllResearchData: () -> Unit,
+    onExportData: (
+        suggestedFilename: String,
+        onSuccess: () -> Unit,
+        onFailure: () -> Unit
+    ) -> Unit,
     onBack: () -> Unit
 ) {
     var logs by remember { mutableStateOf(logger.getLogs().asReversed()) }
@@ -47,6 +58,7 @@ fun DebugLogsScreen(
     var pendingDelete by remember { mutableStateOf<ResearcherDeleteAction?>(null) }
     var profile by remember { mutableStateOf<InitialUserProfileEntity?>(null) }
     var adaptationSummary by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
+    var exportStatus by remember { mutableStateOf(ExportStatus.Idle) }
 
     suspend fun refreshRoomSummary() {
         val dao = AppContainer.database.experimentDao()
@@ -188,6 +200,45 @@ fun DebugLogsScreen(
             logs.forEach { entry ->
                 LogCard(entry = entry)
             }
+        }
+
+        // ── Exportar datos del estudio ──────────────────────────────────────
+        ResearcherSectionCard("Exportar datos") {
+            Text(
+                text = "Seleccione dónde guardar el archivo. Se exportarán todos los datos de estudio almacenados.",
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+        LargePrimaryButton(
+            text = if (exportStatus == ExportStatus.Exporting)
+                       "Exportando datos..."
+                   else
+                       "Exportar datos del estudio",
+            onClick = {
+                if (exportStatus != ExportStatus.Exporting) {
+                    exportStatus = ExportStatus.Exporting
+                    val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+                    val filename = "aura_study_export_$ts.json"
+                    onExportData(
+                        filename,
+                        { exportStatus = ExportStatus.Success },
+                        { exportStatus = ExportStatus.Failed }
+                    )
+                }
+            }
+        )
+        when (exportStatus) {
+            ExportStatus.Success -> Text(
+                text = "✓ Exportación completada",
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.SemiBold
+            )
+            ExportStatus.Failed -> Text(
+                text = "✗ No se pudo exportar el archivo",
+                color = MaterialTheme.colorScheme.error,
+                fontWeight = FontWeight.SemiBold
+            )
+            else -> { /* Idle or Exporting — no extra text */ }
         }
 
         LargeDestructiveButton("Borrar sesión actual", { pendingDelete = ResearcherDeleteAction.CurrentSession })
