@@ -3,6 +3,8 @@ package com.angelotacoj.self_adaptive_health_app.healthtasks.reminders
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import kotlinx.coroutines.delay
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.engine.AdaptiveTiming
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.AdaptiveInteractionEventType
@@ -29,6 +31,7 @@ import androidx.compose.material3.DatePickerDefaults
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
@@ -43,6 +46,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.angelotacoj.self_adaptive_health_app.core.ui.CheckableOptionRow
 import com.angelotacoj.self_adaptive_health_app.core.ui.NoticeBanner
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -105,7 +109,7 @@ fun ReminderScreen(
             ReminderStep.Intro -> {
                 TaskProgressHeader("Paso 1 de 5", "Introducción al recordatorio", adaptiveUiState = state.adaptiveUiState)
                 
-                com.angelotacoj.self_adaptive_health_app.core.ui.NoticeBanner(
+                NoticeBanner(
                     message = "Esta es una simulación. No se generarán notificaciones reales.",
                     isError = false
                 )
@@ -126,19 +130,19 @@ fun ReminderScreen(
             }
             ReminderStep.SelectType -> {
                 TaskProgressHeader("Paso 2 de 5", "Seleccionar Tipo", adaptiveUiState = state.adaptiveUiState)
-                com.angelotacoj.self_adaptive_health_app.core.ui.NoticeBanner(
+                NoticeBanner(
                     message = "Esta es una simulación. No se generarán notificaciones reales.",
                     isError = false
                 )
                 val options = listOf("Vitamina ficticia", "Actividad de autocuidado simulada", "Control simulado de bienestar", "Cita ficticia")
                 options.forEach { option ->
-                    com.angelotacoj.self_adaptive_health_app.core.ui.CheckableOptionRow(
+                    CheckableOptionRow(
                         label = option,
                         selected = state.selectedType == option,
                         onClick = { onAction(ReminderAction.TypeUpdated(option)) }
                     )
                 }
-                androidx.compose.foundation.layout.Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(16.dp))
                 LargePrimaryButton(
                     text = "Continuar",
                     onClick = { onAction(ReminderAction.TypeNextClicked) },
@@ -167,7 +171,9 @@ fun ReminderScreen(
                 val BorderGray = Color(0xFFE2E8F0)
                 
                 if (showDatePicker) {
-                    val datePickerState = rememberDatePickerState()
+                    val datePickerState = rememberDatePickerState(
+                        initialSelectedDateMillis = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")).timeInMillis
+                    )
                     DatePickerDialog(
                         colors = DatePickerDefaults.colors(containerColor = Color.White),
                         onDismissRequest = { showDatePicker = false },
@@ -202,7 +208,10 @@ fun ReminderScreen(
                 }
 
                 if (showTimePicker) {
-                    val timePickerState = rememberTimePickerState()
+                    val timePickerState = rememberTimePickerState(
+                        initialHour = 8,
+                        initialMinute = 0
+                    )
 
                     AlertDialog(
                         containerColor = DialogWhite,
@@ -268,28 +277,30 @@ fun ReminderScreen(
                     modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
                     onClick = { showDatePicker = true }
                 ) {
-                    androidx.compose.foundation.layout.Row(modifier = Modifier.padding(16.dp)) {
-                        Text("Fecha seleccionada: ${state.selectedDate.takeIf { it.isNotEmpty() } ?: "Ninguna (tocar para elegir)"}")
+                    Row(modifier = Modifier.padding(16.dp)) {
+                        val text = if (state.selectedDate.isBlank()) "Seleccione una fecha" else "Fecha seleccionada: ${state.selectedDate}"
+                        Text(text = text)
                     }
                 }
                 
-                androidx.compose.material3.OutlinedCard(
-                    modifier = androidx.compose.ui.Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                OutlinedCard(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
                     onClick = { showTimePicker = true }
                 ) {
-                    androidx.compose.foundation.layout.Row(modifier = androidx.compose.ui.Modifier.padding(16.dp)) {
-                        androidx.compose.material3.Text("Hora seleccionada: ${state.selectedTime.takeIf { it.isNotEmpty() } ?: "Ninguna (tocar para elegir)"}")
+                    val text = if (state.selectedTime.isBlank()) "Seleccione una hora" else "Hora seleccionada: ${state.selectedTime}"
+                    Row(modifier = Modifier.padding(16.dp)) {
+                        Text(text = text)
                     }
                 }
-                val freqs = listOf("Una vez", "Diariamente", "Semanalmente")
+                val freqs = listOf("Una vez", "Diariamente", "Semanalmente", "Mensualmente")
                 freqs.forEach { option ->
-                    com.angelotacoj.self_adaptive_health_app.core.ui.CheckableOptionRow(
+                    CheckableOptionRow(
                         label = option,
                         selected = state.selectedFrequency == option,
                         onClick = { onAction(ReminderAction.FrequencyUpdated(option)) }
                     )
                 }
-                androidx.compose.foundation.layout.Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(16.dp))
                 LargePrimaryButton(
                     text = "Continuar",
                     onClick = { onAction(ReminderAction.ScheduleNextClicked) },
@@ -299,21 +310,25 @@ fun ReminderScreen(
             }
             ReminderStep.SelectDetails -> {
                 TaskProgressHeader("Paso 4 de 5", "Detalles Opcionales", adaptiveUiState = state.adaptiveUiState)
-                com.angelotacoj.self_adaptive_health_app.core.ui.NoticeBanner(
+                NoticeBanner(
                     message = "Esta es una simulación. No se generarán notificaciones reales.",
                     isError = false
                 )
-                androidx.compose.material3.OutlinedTextField(
+                OutlinedTextField(
                     value = state.optionalLocation,
                     onValueChange = { onAction(ReminderAction.LocationUpdated(it)) },
-                    label = { androidx.compose.material3.Text("Ubicación ficticia (Opcional)") },
-                    modifier = androidx.compose.ui.Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                    label = { Text("Ubicación ficticia (Opcional)") },
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                    singleLine = true,
+                    maxLines = 1
                 )
-                androidx.compose.material3.OutlinedTextField(
+                OutlinedTextField(
                     value = state.optionalNote,
                     onValueChange = { onAction(ReminderAction.NoteUpdated(it)) },
-                    label = { androidx.compose.material3.Text("Nota simulada (Opcional)") },
-                    modifier = androidx.compose.ui.Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                    label = { Text("Nota simulada (Opcional)") },
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                    singleLine = true,
+                    maxLines = 1
                 )
                 LargePrimaryButton(
                     text = "Revisar configuración",
@@ -323,11 +338,13 @@ fun ReminderScreen(
             }
             ReminderStep.ReviewSummary -> {
                 TaskProgressHeader("Paso 5 de 5", "Revisar recordatorio", adaptiveUiState = state.adaptiveUiState)
-                com.angelotacoj.self_adaptive_health_app.core.ui.NoticeBanner(
+                NoticeBanner(
                     message = "Esta es una simulación. No se generarán notificaciones reales.",
                     isError = false
                 )
-                SummaryReviewCard("Resumen del recordatorio simulado", listOf(
+                SummaryReviewCard(
+                    title = "Resumen del recordatorio simulado",
+                    rows = listOf(
                     "Tipo" to state.selectedType,
                     "Fecha" to state.selectedDate,
                     "Hora" to state.selectedTime,

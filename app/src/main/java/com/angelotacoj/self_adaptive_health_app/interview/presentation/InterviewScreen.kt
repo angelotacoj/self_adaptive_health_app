@@ -1,11 +1,5 @@
 package com.angelotacoj.self_adaptive_health_app.interview.presentation
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,18 +10,19 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -49,18 +44,99 @@ import com.angelotacoj.self_adaptive_health_app.core.ui.ScreenContainer
  * Design intent:
  *  - Evaluator-facing (not participant-facing).
  *  - Large text fields, clear labels, relaxed constraints.
- *  - Skip is intentionally allowed: documented in protocol.
+ *  - Skip requires explicit confirmation (persisted).
+ *  - Saving with all empty notes requires explicit confirmation.
  */
 @Composable
 fun InterviewScreen(
     state: InterviewScreenState,
     onEvent: (InterviewEvent) -> Unit
 ) {
+    // ── Empty-save confirmation dialog ────────────────────────────────────────
+    if (state.showEmptyConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { onEvent(InterviewEvent.DismissEmptySaveDialog) },
+            shape = RoundedCornerShape(24.dp),
+            title = {
+                Text(
+                    "Sin notas registradas",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    "No se han registrado notas. ¿Desea finalizar la entrevista sin respuestas?",
+                    style = MaterialTheme.typography.bodyLarge
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { onEvent(InterviewEvent.ConfirmEmptySave) }) {
+                    Text(
+                        "Finalizar sin respuestas",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.error,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { onEvent(InterviewEvent.DismissEmptySaveDialog) }) {
+                    Text(
+                        "Volver",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        )
+    }
+
+    // ── Skip confirmation dialog ──────────────────────────────────────────────
+    if (state.showSkipConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { onEvent(InterviewEvent.DismissSkipDialog) },
+            shape = RoundedCornerShape(24.dp),
+            title = {
+                Text(
+                    "¿Omitir la entrevista?",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    "¿Desea omitir la entrevista? Esta acción quedará registrada.",
+                    style = MaterialTheme.typography.bodyLarge
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { onEvent(InterviewEvent.ConfirmSkip) }) {
+                    Text(
+                        "Omitir entrevista",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.error,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { onEvent(InterviewEvent.DismissSkipDialog) }) {
+                    Text(
+                        "Volver",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        )
+    }
+
     if (state.isSaved) {
-        // Confirmation screen
+        // Confirmation screen shown after successful save/skip
         ScreenContainer(
             title = "Entrevista guardada",
-            subtitle = "Los datos han sido registrados.",
+            subtitle = "La entrevista fue registrada. La sesión finalizará a continuación.",
             showNotice = false
         ) {
             Spacer(Modifier.height(24.dp))
@@ -80,9 +156,10 @@ fun InterviewScreen(
                 modifier = Modifier.align(Alignment.CenterHorizontally)
             )
             Text(
-                text = "Continúe con el siguiente paso.",
+                text = "La entrevista fue registrada. La sesión finalizará a continuación.",
                 style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.align(Alignment.CenterHorizontally)
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
         }
         return
@@ -104,11 +181,19 @@ fun InterviewScreen(
                 )
                 .padding(16.dp)
         ) {
-            Text(
-                text = "Esta es una entrevista semiestructurada. Haga cada pregunta en voz alta y registre un resumen de la respuesta del participante en el campo correspondiente. Puede omitir preguntas si el participante prefiere no responder.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSecondaryContainer
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "Esta es una entrevista semiestructurada. Haga cada pregunta en voz alta y registre un resumen de la respuesta del participante en el campo correspondiente. Puede omitir preguntas si el participante prefiere no responder.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+                Text(
+                    text = "Puede escribir un resumen breve; no es necesario transcribir la respuesta completa.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+            }
         }
 
         Spacer(Modifier.height(8.dp))

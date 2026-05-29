@@ -10,21 +10,11 @@ import org.junit.Test
 
 class ExperimentSessionStateTest {
     @Test
-    fun groupACompletesExactlyTenTasks_staticThenSelfAdaptive() {
+    fun completesExactlyTenTasks_staticThenSelfAdaptive() {
         val finished = completeTenTasks(ExperimentGroup.GroupA)
 
         assertEquals(ExperimentTasksPerCondition, finished.completedTasksByCondition.getValue(ExperimentCondition.STATIC_UI).size)
         assertEquals(ExperimentTasksPerCondition, finished.completedTasksByCondition.getValue(ExperimentCondition.SELF_ADAPTIVE_UI).size)
-        assertEquals(finished.totalRequiredTaskRuns(), finished.completedTaskCount())
-        assertFalse(finished.isSessionActive)
-    }
-
-    @Test
-    fun groupBCompletesExactlyTenTasks_selfAdaptiveThenStatic() {
-        val finished = completeTenTasks(ExperimentGroup.GroupB)
-
-        assertEquals(ExperimentTasksPerCondition, finished.completedTasksByCondition.getValue(ExperimentCondition.SELF_ADAPTIVE_UI).size)
-        assertEquals(ExperimentTasksPerCondition, finished.completedTasksByCondition.getValue(ExperimentCondition.STATIC_UI).size)
         assertEquals(finished.totalRequiredTaskRuns(), finished.completedTaskCount())
         assertFalse(finished.isSessionActive)
     }

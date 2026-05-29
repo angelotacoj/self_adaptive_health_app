@@ -22,6 +22,7 @@ import com.angelotacoj.self_adaptive_health_app.adaptive.presentation.components
 import com.angelotacoj.self_adaptive_health_app.core.logging.InteractionEventType
 import com.angelotacoj.self_adaptive_health_app.core.logging.ScreenId
 import com.angelotacoj.self_adaptive_health_app.core.ui.ButtonRow
+import com.angelotacoj.self_adaptive_health_app.core.ui.CheckableOptionRow
 import com.angelotacoj.self_adaptive_health_app.core.ui.InstructionCard
 import com.angelotacoj.self_adaptive_health_app.core.ui.LargePrimaryButton
 import com.angelotacoj.self_adaptive_health_app.core.ui.LargeSecondaryButton
@@ -135,21 +136,21 @@ fun WellBeingScreen(
                 
                 val moods = listOf("Tranquilo", "Cansado", "Animado", "Neutral")
                 moods.forEach { option ->
-                    com.angelotacoj.self_adaptive_health_app.core.ui.CheckableOptionRow(
+                    CheckableOptionRow(
                         label = option,
                         selected = state.mood == option,
                         onClick = { onAction(WellBeingAction.MoodSelected(option)) }
                     )
                 }
 
-                Spacer(Modifier.height(16.dp))
-
                 OutlinedTextField(
                     value = state.note,
                     onValueChange = { onAction(WellBeingAction.NoteChanged(it)) },
                     label = { Text("Observación (opcional)") },
                     textStyle = if (state.adaptiveUiState.isAdaptiveMode) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                    singleLine = true,
+                    maxLines = 1
                 )
 
                 if (state.errorMessage != null) {
@@ -190,7 +191,7 @@ fun WellBeingScreen(
                     "Fecha simulada" to java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.forLanguageTag("es-ES")).format(java.util.Date())
                 ), adaptiveUiState = state.adaptiveUiState)
                 ButtonRow(
-                    primaryText = "Guardar registro simulado",
+                    primaryText = "Guardar registro",
                     onPrimary = {
                         onLog(InteractionEventType.SENSITIVE_ACTION, screenId, "Attempted to save simulated well-being record.")
                         val requiresValidation = onAdaptiveEvent(AdaptiveInteractionEventType.SENSITIVE_ACTION, screenId)

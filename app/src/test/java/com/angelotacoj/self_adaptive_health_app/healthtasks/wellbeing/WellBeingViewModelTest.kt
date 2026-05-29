@@ -17,13 +17,10 @@ class WellBeingViewModelTest {
     }
 
     @Test
-    fun `start initializes state with record details and Intro step`() {
+    fun `start initializes state and Intro step`() {
         viewModel.start(record)
         val state = viewModel.state.value
         assertNotNull(state)
-        assertEquals("Nivel de energía", state?.label)
-        assertEquals(5, state?.suggestedValue)
-        assertEquals("", state?.valueText)
         assertEquals(WellBeingStep.Intro, state?.step)
     }
 
@@ -35,56 +32,48 @@ class WellBeingViewModelTest {
     }
 
     @Test
-    fun `ValueChanged updates state and filters non-digits`() {
+    fun `EnergyLevelChanged updates state and filters non-digits`() {
         viewModel.start(record)
         viewModel.onAction(WellBeingAction.StartFormClicked)
-        viewModel.onAction(WellBeingAction.ValueChanged("10a"))
-        assertEquals("10", viewModel.state.value?.valueText)
+        viewModel.onAction(WellBeingAction.EnergyLevelChanged("10a"))
+        assertEquals("10", viewModel.state.value?.energyLevel)
     }
 
     @Test
-    fun `ValidateClicked with invalid value shows error and increments fieldErrorCount`() {
+    fun `ValidateAndReviewClicked with invalid energy shows error and increments fieldErrorCount`() {
         viewModel.start(record)
         viewModel.onAction(WellBeingAction.StartFormClicked)
-        viewModel.onAction(WellBeingAction.ValueChanged("15")) // Invalid (out of 1-10 range)
+        viewModel.onAction(WellBeingAction.EnergyLevelChanged("15")) // Invalid (out of 1-10 range)
         
-        viewModel.onAction(WellBeingAction.ValidateClicked)
+        viewModel.onAction(WellBeingAction.ValidateAndReviewClicked)
         
         val state = viewModel.state.value
-        assertEquals("Ingrese un valor ficticio del 1 al 10.", state?.errorMessage)
+        assertEquals("Ingrese un número entre 1 y 10 para el nivel de energía simulado.", state?.errorMessage)
         assertEquals(1, state?.fieldErrorCount)
         assertEquals(WellBeingStep.Form, state?.step)
     }
 
     @Test
-    fun `ValidateClicked with valid value moves to Validation step`() {
+    fun `ValidateAndReviewClicked with valid values moves to Review step`() {
         viewModel.start(record)
         viewModel.onAction(WellBeingAction.StartFormClicked)
-        viewModel.onAction(WellBeingAction.ValueChanged("8"))
+        viewModel.onAction(WellBeingAction.EnergyLevelChanged("8"))
+        viewModel.onAction(WellBeingAction.MoodSelected("Feliz"))
         
-        viewModel.onAction(WellBeingAction.ValidateClicked)
+        viewModel.onAction(WellBeingAction.ValidateAndReviewClicked)
         
         val state = viewModel.state.value
         assertNull(state?.errorMessage)
-        assertEquals(WellBeingStep.Validation, state?.step)
-    }
-
-    @Test
-    fun `ContinueToReviewClicked moves to Review step`() {
-        viewModel.start(record)
-        viewModel.onAction(WellBeingAction.StartFormClicked)
-        viewModel.onAction(WellBeingAction.ValidateClicked)
-        viewModel.onAction(WellBeingAction.ContinueToReviewClicked)
-        
-        assertEquals(WellBeingStep.Review, viewModel.state.value?.step)
+        assertEquals(WellBeingStep.Review, state?.step)
     }
 
     @Test
     fun `SaveClicked moves to Success step`() {
         viewModel.start(record)
         viewModel.onAction(WellBeingAction.StartFormClicked)
-        viewModel.onAction(WellBeingAction.ValidateClicked)
-        viewModel.onAction(WellBeingAction.ContinueToReviewClicked)
+        viewModel.onAction(WellBeingAction.EnergyLevelChanged("8"))
+        viewModel.onAction(WellBeingAction.MoodSelected("Feliz"))
+        viewModel.onAction(WellBeingAction.ValidateAndReviewClicked)
         viewModel.onAction(WellBeingAction.SaveClicked)
         
         assertEquals(WellBeingStep.Success, viewModel.state.value?.step)
@@ -94,8 +83,9 @@ class WellBeingViewModelTest {
     fun `EditClicked moves back to Form step from Review`() {
         viewModel.start(record)
         viewModel.onAction(WellBeingAction.StartFormClicked)
-        viewModel.onAction(WellBeingAction.ValidateClicked)
-        viewModel.onAction(WellBeingAction.ContinueToReviewClicked)
+        viewModel.onAction(WellBeingAction.EnergyLevelChanged("8"))
+        viewModel.onAction(WellBeingAction.MoodSelected("Feliz"))
+        viewModel.onAction(WellBeingAction.ValidateAndReviewClicked)
         
         viewModel.onAction(WellBeingAction.EditClicked)
         

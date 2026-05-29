@@ -76,15 +76,15 @@ class AccessViewModelTest {
     }
 
     @Test
-    fun `SimulatedPinChanged updates state and limits to 4 digits`() {
+    fun `SimulatedPinChanged updates state and limits to 6 digits`() {
         viewModel.start(credentials)
         viewModel.onAction(AccessAction.StartClicked)
         viewModel.onAction(AccessAction.UserCodeChanged("USER123"))
         viewModel.onAction(AccessAction.ContinueFromCodeClicked)
         
-        viewModel.onAction(AccessAction.SimulatedPinChanged("12345"))
+        viewModel.onAction(AccessAction.SimulatedPinChanged("1234567"))
         
-        assertEquals("1234", viewModel.state.value?.simulatedPin)
+        assertEquals("123456", viewModel.state.value?.simulatedPin)
     }
 
     @Test

@@ -143,7 +143,7 @@ fun AppointmentScreen(
                     adaptiveUiState = state.adaptiveUiState
                 )
                 ButtonRow(
-                    primaryText = "Confirmé la información",
+                    primaryText = "Confirmar",
                     onPrimary = {
                         onLog(InteractionEventType.BUTTON_CLICKED, screenId, "Appointment detail reviewed.")
                         onAction(AppointmentAction.ContinueFromDetailClicked)
@@ -165,7 +165,7 @@ fun AppointmentScreen(
                     InstructionCard("¿Identificó la fecha, la hora y la indicación principal?", listOf("Esta es una consulta simulada. Si necesita volver a leer, elija 'Revisar nuevamente'."), adaptiveUiState = state.adaptiveUiState)
                 }
                 ButtonRow(
-                    primaryText = "Entendido, completar tarea",
+                    primaryText = "Completar la tarea",
                     onPrimary = {
                         onLog(InteractionEventType.TASK_COMPLETED, screenId, "T2 completed.")
                         onAction(AppointmentAction.ConfirmFoundClicked)

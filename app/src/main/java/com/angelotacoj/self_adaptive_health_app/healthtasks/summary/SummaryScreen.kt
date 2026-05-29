@@ -6,6 +6,7 @@ import androidx.activity.compose.BackHandler
 import kotlinx.coroutines.delay
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.engine.AdaptiveTiming
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.AdaptiveInteractionEventType
+import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.ReviewSummary
 import com.angelotacoj.self_adaptive_health_app.adaptive.presentation.components.AdaptiveConfirmationDialog
 import com.angelotacoj.self_adaptive_health_app.adaptive.presentation.components.AdaptiveSuggestionCard
 import com.angelotacoj.self_adaptive_health_app.adaptive.presentation.components.ContextualHelpBox
@@ -90,7 +91,10 @@ fun SummaryScreen(
             val t1 = state.taskOutputs["T1_ACCESS"]
             if (t1 != null) {
                 val json = org.json.JSONObject(t1)
-                list.add("T1: Acceso" to "Código: ${json.optString("participantCode", "N/A")}")
+                val text = "Código: ${json.optString("participantCode", "N/A")}\n" +
+                           "Completado: ${if(json.optBoolean("simulatedAccessCompleted", false)) "Sí" else "No"}\n" +
+                           "Nota: ${json.optString("note", "")}"
+                list.add("T1: Acceso" to text)
             } else {
                 list.add("T1: Acceso" to "Información simulada no registrada aún.")
             }
@@ -98,7 +102,15 @@ fun SummaryScreen(
             val t2 = state.taskOutputs["T2_APPOINTMENT"]
             if (t2 != null) {
                 val json = org.json.JSONObject(t2)
-                list.add("T2: Cita" to "${json.optString("professionalName", "")} - ${json.optString("appointmentDate", "")} ${json.optString("appointmentTime", "")}")
+                val text = "Profesional: ${json.optString("professionalName", "")}\n" +
+                           "Especialidad: ${json.optString("specialty", "")}\n" +
+                           "Fecha y hora: ${json.optString("appointmentDate", "")} - ${json.optString("appointmentTime", "")}\n" +
+                           "Lugar: ${json.optString("simulatedLocation", "")}\n" +
+                           "Instrucción: ${json.optString("mainInstruction", "")}\n" +
+                           "Preparación: ${json.optString("preparationInstruction", "")}\n" +
+                           "Llevar: ${json.optString("itemsToBring", "")}\n" +
+                           "Accesibilidad: ${json.optString("accessibilityNote", "")}"
+                list.add("T2: Cita" to text)
             } else {
                 list.add("T2: Cita" to "Información simulada no registrada aún.")
             }
@@ -106,7 +118,11 @@ fun SummaryScreen(
             val t3 = state.taskOutputs["T3_WELL_BEING"]
             if (t3 != null) {
                 val json = org.json.JSONObject(t3)
-                list.add("T3: Bienestar" to "Energía: ${json.optString("energyLevel", "")}, Ánimo: ${json.optString("mood", "")}")
+                val text = "Energía: ${json.optString("energyLevel", "")}\n" +
+                           "Ánimo: ${json.optString("mood", "")}\n" +
+                           "Nota: ${json.optString("note", "")}\n" +
+                           "Fecha: ${json.optString("simulatedDate", "")}"
+                list.add("T3: Bienestar" to text)
             } else {
                 list.add("T3: Bienestar" to "Información simulada no registrada aún.")
             }
@@ -114,7 +130,12 @@ fun SummaryScreen(
             val t4 = state.taskOutputs["T4_REMINDER"]
             if (t4 != null) {
                 val json = org.json.JSONObject(t4)
-                list.add("T4: Recordatorio" to "${json.optString("reminderType", "")} a las ${json.optString("reminderTime", "")}")
+                val text = "Tipo: ${json.optString("reminderType", "")}\n" +
+                           "Fecha y hora: ${json.optString("reminderDate", "")} - ${json.optString("reminderTime", "")}\n" +
+                           "Frecuencia: ${json.optString("frequency", "")}\n" +
+                           "Ubicación: ${json.optString("location", "")}\n" +
+                           "Nota: ${json.optString("note", "")}"
+                list.add("T4: Recordatorio" to text)
             } else {
                 list.add("T4: Recordatorio" to "Información simulada no registrada aún.")
             }
@@ -143,7 +164,7 @@ fun SummaryScreen(
                     "Guardar información",
                     {
                         onLog(InteractionEventType.SENSITIVE_ACTION, screenId, "Save information clicked for simulated summary.")
-                        val summaryData = com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.ReviewSummary(
+                        val summaryData = ReviewSummary(
                             title = "Datos simulados",
                             details = parsedItems.toMap()
                         )

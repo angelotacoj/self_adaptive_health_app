@@ -28,36 +28,36 @@ class ReminderViewModelTest {
     }
 
     @Test
-    fun `StartNewReminderClicked moves to SelectActivity step`() {
+    fun `StartNewReminderClicked moves to SelectType step`() {
         viewModel.start(template)
         viewModel.onAction(ReminderAction.StartNewReminderClicked)
-        assertEquals(ReminderStep.SelectActivity, viewModel.state.value?.step)
+        assertEquals(ReminderStep.SelectType, viewModel.state.value?.step)
     }
 
     @Test
-    fun `ActivitySelected moves to SelectTime step`() {
+    fun `TypeNextClicked moves to SelectSchedule step`() {
         viewModel.start(template)
         viewModel.onAction(ReminderAction.StartNewReminderClicked)
-        viewModel.onAction(ReminderAction.ActivitySelected)
-        assertEquals(ReminderStep.SelectTime, viewModel.state.value?.step)
+        viewModel.onAction(ReminderAction.TypeNextClicked)
+        assertEquals(ReminderStep.SelectSchedule, viewModel.state.value?.step)
     }
 
     @Test
-    fun `TimeSelected moves to SelectFrequency step`() {
+    fun `ScheduleNextClicked moves to SelectDetails step`() {
         viewModel.start(template)
         viewModel.onAction(ReminderAction.StartNewReminderClicked)
-        viewModel.onAction(ReminderAction.ActivitySelected)
-        viewModel.onAction(ReminderAction.TimeSelected)
-        assertEquals(ReminderStep.SelectFrequency, viewModel.state.value?.step)
+        viewModel.onAction(ReminderAction.TypeNextClicked)
+        viewModel.onAction(ReminderAction.ScheduleNextClicked)
+        assertEquals(ReminderStep.SelectDetails, viewModel.state.value?.step)
     }
 
     @Test
-    fun `FrequencySelected moves to ReviewSummary step`() {
+    fun `DetailsNextClicked moves to ReviewSummary step`() {
         viewModel.start(template)
         viewModel.onAction(ReminderAction.StartNewReminderClicked)
-        viewModel.onAction(ReminderAction.ActivitySelected)
-        viewModel.onAction(ReminderAction.TimeSelected)
-        viewModel.onAction(ReminderAction.FrequencySelected)
+        viewModel.onAction(ReminderAction.TypeNextClicked)
+        viewModel.onAction(ReminderAction.ScheduleNextClicked)
+        viewModel.onAction(ReminderAction.DetailsNextClicked)
         assertEquals(ReminderStep.ReviewSummary, viewModel.state.value?.step)
     }
 
@@ -65,9 +65,9 @@ class ReminderViewModelTest {
     fun `SaveReminderClicked moves to Saved step`() {
         viewModel.start(template)
         viewModel.onAction(ReminderAction.StartNewReminderClicked)
-        viewModel.onAction(ReminderAction.ActivitySelected)
-        viewModel.onAction(ReminderAction.TimeSelected)
-        viewModel.onAction(ReminderAction.FrequencySelected)
+        viewModel.onAction(ReminderAction.TypeNextClicked)
+        viewModel.onAction(ReminderAction.ScheduleNextClicked)
+        viewModel.onAction(ReminderAction.DetailsNextClicked)
         viewModel.onAction(ReminderAction.SaveReminderClicked)
         assertEquals(ReminderStep.Saved, viewModel.state.value?.step)
     }
@@ -78,20 +78,20 @@ class ReminderViewModelTest {
         
         // Navigate forward
         viewModel.onAction(ReminderAction.StartNewReminderClicked)
-        viewModel.onAction(ReminderAction.ActivitySelected)
-        viewModel.onAction(ReminderAction.TimeSelected)
-        viewModel.onAction(ReminderAction.FrequencySelected)
+        viewModel.onAction(ReminderAction.TypeNextClicked)
+        viewModel.onAction(ReminderAction.ScheduleNextClicked)
+        viewModel.onAction(ReminderAction.DetailsNextClicked)
         assertEquals(ReminderStep.ReviewSummary, viewModel.state.value?.step)
         
         // Navigate backward
         viewModel.onAction(ReminderAction.BackClicked)
-        assertEquals(ReminderStep.SelectFrequency, viewModel.state.value?.step)
+        assertEquals(ReminderStep.SelectDetails, viewModel.state.value?.step)
         
         viewModel.onAction(ReminderAction.BackClicked)
-        assertEquals(ReminderStep.SelectTime, viewModel.state.value?.step)
+        assertEquals(ReminderStep.SelectSchedule, viewModel.state.value?.step)
         
         viewModel.onAction(ReminderAction.BackClicked)
-        assertEquals(ReminderStep.SelectActivity, viewModel.state.value?.step)
+        assertEquals(ReminderStep.SelectType, viewModel.state.value?.step)
         
         viewModel.onAction(ReminderAction.BackClicked)
         assertEquals(ReminderStep.Intro, viewModel.state.value?.step)

@@ -55,12 +55,15 @@ object SessionResumeResolver {
             }
         }
 
-        // Check Interview
-        val entity = experimentDao.getSessionById(session.sessionId)
-        if (entity != null && entity.isCompleted) {
-            return PendingStepResult(AppRoute.SessionCompleted.route, 1, isCompleted = true)
+        // Check Interview – use persisted status as source of truth.
+        // A row in interview_status with SAVED or SKIPPED means the interview is done.
+        // No row (null) = PENDING: resume at InterviewScreen.
+        val interviewStatus = interviewDao.getInterviewStatus(session.participantId, session.sessionId)
+        if (interviewStatus == null) {
+            return PendingStepResult(AppRoute.Interview.route, 1, isInterview = true)
         }
-        
-        return PendingStepResult(AppRoute.Interview.route, 1, isInterview = true)
+
+        // Interview done (SAVED or SKIPPED) → session completed
+        return PendingStepResult(AppRoute.SessionCompleted.route, 1, isCompleted = true)
     }
 }

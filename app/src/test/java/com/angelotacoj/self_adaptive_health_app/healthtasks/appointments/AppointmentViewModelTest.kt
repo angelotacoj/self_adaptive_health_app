@@ -8,10 +8,10 @@ import org.junit.Test
 
 class AppointmentViewModelTest {
 
-    private val target = Appointment("Cita Dental", "20/05/2026", "10:00 AM", "Traer carnet")
+    private val target = Appointment("Cita Dental", "20/05/2026", "10:00 AM", "Traer carnet", "Dr. A", "Odontología", "Piso 1", "Nada", "Carnet", "Ninguna")
     private val options = listOf(
-        Appointment("Cita Dental", "20/05/2026", "10:00 AM", "Traer carnet"),
-        Appointment("Cita Médica", "21/05/2026", "11:00 AM", "Ayunas")
+        Appointment("Cita Dental", "20/05/2026", "10:00 AM", "Traer carnet", "Dr. A", "Odontología", "Piso 1", "Nada", "Carnet", "Ninguna"),
+        Appointment("Cita Médica", "21/05/2026", "11:00 AM", "Ayunas", "Dr. B", "Medicina General", "Piso 2", "Ayunas 8h", "DNI", "Rampa")
     )
     private val viewModel = AppointmentViewModel()
 

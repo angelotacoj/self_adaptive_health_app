@@ -14,6 +14,8 @@ class FakeHealthDataSource {
             ExperimentGroup.GroupB -> setB
         }
     }
+    
+    val dataSets: List<FakeHealthDataSet> get() = listOf(setA, setB)
 
     private val setA = FakeHealthDataSet(
         id = "Conjunto A",
@@ -52,8 +54,8 @@ class FakeHealthDataSource {
     private val setB = FakeHealthDataSet(
         id = "Conjunto B",
         accessCredentials = AccessCredentials(
-            userCode = "PACIENTE02",
-            simulatedPin = "5678"
+            userCode = "PACIENTE1830",
+            simulatedPin = "830132"
         ),
         appointment = Appointment(
             title = "Control preventivo (Ficticio)",

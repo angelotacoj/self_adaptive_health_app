@@ -61,10 +61,6 @@ data class ExperimentSessionState(
         )
     }
 
-    fun moveToNextTask(taskId: TaskId): ExperimentSessionState = copy(currentTaskId = taskId)
-
-    fun finishCondition(): ExperimentSessionState = copy(currentTaskId = null)
-
     fun moveToNextCondition(): ExperimentSessionState {
         val nextIndex = currentConditionIndex + 1
         return if (nextIndex in conditionOrder.indices) {

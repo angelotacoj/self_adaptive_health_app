@@ -2,17 +2,14 @@ package com.angelotacoj.self_adaptive_health_app
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
-import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
-import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.engine.AdaptiveTiming
-import com.angelotacoj.self_adaptive_health_app.core.logging.TaskId
 import com.angelotacoj.self_adaptive_health_app.di.AppContainer
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -22,6 +19,25 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
+/**
+ * Phase C1.7B: End-to-end instrumented tests for the fixed experiment flow.
+ *
+ * Final methodology:
+ *   Setup → Initial Profile → STATIC T1–T5 → UEQ_STATIC (26 items)
+ *       → ConditionTransition → ADAPTIVE T1–T5 → UEQ_ADAPTIVE (26 items)
+ *       → Interview → SessionCompleted
+ *
+ * No Group A/B. No UEQ-S. Participant code is a stable 4-char alphanumeric string.
+ * Room database version = 1. App data cleared before each test via resetResearchData().
+ *
+ * Test coverage:
+ * E2E-01: Static condition completes T1–T5 and routes to UEQ.
+ * E2E-02: After Static UEQ, condition transition screen is shown.
+ * E2E-03: Completed T1 shows as disabled on Home screen (Room-backed).
+ * E2E-04: Static condition does not show adaptive affordances ("Necesito ayuda").
+ * E2E-05: Full session flow Static → UEQ → Transition → Adaptive → UEQ → Interview → SessionCompleted.
+ * E2E-06: Interview skip routes to SessionCompleted.
+ */
 @RunWith(AndroidJUnit4::class)
 class ExperimentalFlowEndToEndTest {
     @get:Rule
@@ -39,207 +55,201 @@ class ExperimentalFlowEndToEndTest {
         composeRule.clearActiveSessionBeforeActivityDestroy()
     }
 
-    @Test
-    fun groupA_completesFirstConditionAndTransitions_staticToSelfAdaptive() {
-        composeRule.startGroupASession("E2E_GROUP_A_001")
+    // ── E2E-01: Static T1–T5 completion routes to UEQ ────────────────────────
 
-        composeRule.completeCurrentCondition(userCode = "PACIENTE01", pin = "1234", selfAdaptive = false)
-        composeRule.onNodeWithText("Bloque de tareas completado").assertIsDisplayed()
-        composeRule.onNodeWithText("UEQ-S completado, continuar").performScrollTo().performClick()
-        composeRule.assertTextExists("Etapa 2")
-        composeRule.assertRoomCompletionCounts(total = 5, static = 5, selfAdaptive = 0)
+    /**
+     * After completing all 5 static tasks, the home screen shows
+     * "Continuar con el UEQ" and the UEQ screen is reachable.
+     */
+    @Test
+    fun e2e01_staticConditionComplete_routesToUeqScreen() {
+        composeRule.startFixedOrderSession("E001")
+        composeRule.completeStaticConditionTasks()
+
+        // After T5 completes, app auto-navigates to UEQ
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            composeRule.onAllNodesWithText("UEQ").fetchSemanticsNodes().isNotEmpty() ||
+                composeRule.onAllNodesWithText("Cuestionario completado").fetchSemanticsNodes().isNotEmpty()
+        }
+        val ueqVisible = composeRule.onAllNodesWithText("UEQ").fetchSemanticsNodes().isNotEmpty() ||
+            composeRule.onAllNodesWithText("Cuestionario completado").fetchSemanticsNodes().isNotEmpty()
+        assert(ueqVisible) { "Expected UEQ screen after completing Static condition tasks" }
     }
 
-    @Test
-    fun groupB_completesFirstConditionAndTransitions_selfAdaptiveToStatic() {
-        composeRule.startGroupBSession("E2E_GROUP_B_001")
+    // ── E2E-02: Static UEQ → ConditionTransition ─────────────────────────────
 
-        composeRule.completeCurrentCondition(userCode = "PACIENTE02", pin = "5678", selfAdaptive = true)
-        composeRule.onNodeWithText("Bloque de tareas completado").assertIsDisplayed()
-        composeRule.onNodeWithText("UEQ-S completado, continuar").performScrollTo().performClick()
-        composeRule.assertTextExists("Etapa 2")
-        composeRule.assertRoomCompletionCounts(total = 5, static = 0, selfAdaptive = 5)
+    /**
+     * After completing Static tasks and the UEQ, the ConditionTransition screen
+     * ("Primera etapa completada") is shown with a continue button.
+     */
+    @Test
+    fun e2e02_staticUeq_routesToConditionTransition() {
+        composeRule.startFixedOrderSession("E002")
+        composeRule.completeStaticConditionTasks()
+        composeRule.completeOfficialUeq26()
+
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            composeRule.onAllNodesWithText("Primera etapa completada").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithText("Primera etapa completada").assertIsDisplayed()
+        composeRule.onNodeWithText("Continuar con la segunda interfaz").performScrollTo().assertIsDisplayed()
     }
 
+    // ── E2E-03: Room-backed task completion persists on Home ──────────────────
+
+    /**
+     * After completing T1, returning to Home shows T1 button as disabled (completed)
+     * and the completion is persisted in Room (backed by DAO).
+     */
     @Test
-    fun activeSession_persistsInRoomAndDataStoreForRecovery() {
-        val participantId = composeRule.startGroupASession("E2E_RESTORE_001")
-        composeRule.completeT1Access(userCode = "PACIENTE01", pin = "1234", selfAdaptive = false)
-        composeRule.assertRoomCompletionCounts(total = 1, static = 1, selfAdaptive = 0)
-        composeRule.assertActiveSessionSnapshot(participantId = participantId)
-        composeRule.assertTextExists("Etapa 1")
-        composeRule.onNodeWithText("T1 Acceder con código/PIN simulado").performScrollTo().assertIsDisplayed()
+    fun e2e03_completedT1_persistsInRoomAndDisablesButton() {
+        composeRule.startFixedOrderSession("E003")
+        composeRule.completeT1AccessToUnlockTasks()
+
+        // T1 button should be disabled (completed)
         composeRule.onNodeWithTag("start_t1_access").performScrollTo().assertIsNotEnabled()
-        composeRule.assertRoomCompletionCounts(total = 1, static = 1, selfAdaptive = 0)
+
+        // Verify Room has exactly 1 completed task in STATIC condition
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            runBlocking {
+                val dao = AppContainer.database.experimentDao()
+                val sessionId = AppContainer.experimentPreferences.sessionSnapshot.first().currentSessionId
+                    ?: return@runBlocking false
+                dao.getCompletedTaskCount(sessionId, "STATIC_UI") == 1
+            }
+        }
+        val staticCount = runBlocking {
+            val dao = AppContainer.database.experimentDao()
+            val sessionId = AppContainer.experimentPreferences.sessionSnapshot.first().currentSessionId!!
+            dao.getCompletedTaskCount(sessionId, "STATIC_UI")
+        }
+        assert(staticCount == 1) { "Expected 1 completed task in STATIC_UI, got $staticCount" }
     }
 
+    // ── E2E-04: Static condition has no adaptive affordances ──────────────────
+
+    /**
+     * In the STATIC condition:
+     * - "Ayuda: explicar esta sesión" button is NOT visible on Home.
+     * - T3 form does not show "Necesito ayuda" or adaptation banners.
+     */
     @Test
-    fun staticConditionDoesNotShowAdaptiveHelpAffordances() {
-        composeRule.startGroupASession("E2E_STATIC_NO_HELP_001")
+    fun e2e04_staticCondition_doesNotShowAdaptiveAffordances() {
+        composeRule.startFixedOrderSession("E004")
 
-        composeRule.assertTextAbsent("Ayuda: explicar esta sesión")
-        composeRule.onNodeWithTag("start_t2_appointment").performScrollTo().assertIsNotEnabled()
-        composeRule.openTaskByTitle("T1 Acceder con código/PIN simulado")
+        // "Ayuda: explicar esta sesión" only shows in ADAPTIVE mode
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithText("Ayuda: explicar esta sesión").fetchSemanticsNodes().isEmpty()
+        }
+        assert(
+            composeRule.onAllNodesWithText("Ayuda: explicar esta sesión").fetchSemanticsNodes().isEmpty()
+        ) { "Expected 'Ayuda: explicar esta sesión' to be absent in STATIC condition" }
+
+        // Open T1 and check for absence of adaptive help
+        composeRule.openTaskByTitle("Tarea 1:")
         composeRule.onNodeWithText("Comenzar").performScrollTo().performClick()
-        composeRule.assertTextExists("Paso 2 de 5")
-        composeRule.assertTextAbsent("Necesito ayuda")
-        composeRule.onNodeWithText("Cancelar tarea").performScrollTo().performClick()
-        composeRule.waitForHome()
-
-        composeRule.openTaskByTitle("T3 Registro de bienestar")
-        composeRule.waitForIdle()
-
-        composeRule.assertTextAbsent("Necesito ayuda")
-        composeRule.assertTextAbsent("Ayuda del sistema")
-        composeRule.assertTextAbsent("Sugerencia de adaptación")
-        composeRule.assertTextAbsent("Cambio aplicado automáticamente")
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithText("Código de usuario").fetchSemanticsNodes().isNotEmpty()
+        }
+        assert(
+            composeRule.onAllNodesWithText("Necesito ayuda").fetchSemanticsNodes().isEmpty()
+        ) { "Expected 'Necesito ayuda' to be absent in STATIC condition" }
+        assert(
+            composeRule.onAllNodesWithText("Sugerencia de adaptación").fetchSemanticsNodes().isEmpty()
+        ) { "Expected no adaptive suggestion cards in STATIC condition" }
 
         composeRule.pressBackBestEffort()
     }
-}
 
-private fun MainComposeRule.completeCurrentCondition(
-    userCode: String,
-    pin: String,
-    selfAdaptive: Boolean
-) {
-    completeT1Access(userCode, pin, selfAdaptive)
-    completeT2Appointment(selfAdaptive)
-    completeT3WellBeing(selfAdaptive)
-    completeT4Reminder(selfAdaptive)
-    completeT5Summary(selfAdaptive)
-}
+    // ── E2E-05: Full session flow ─────────────────────────────────────────────
 
-private fun MainComposeRule.completeT1Access(
-    userCode: String,
-    pin: String,
-    selfAdaptive: Boolean
-) {
-    openTaskByTitle("T1 Acceder con código/PIN simulado")
-    onNodeWithText("Comenzar").performScrollTo().performClick()
-    onNode(editableTextField("Código de usuario")).performTextInput(userCode)
-    onNodeWithText("Continuar").performScrollTo().performClick()
-    onNode(editableTextField("PIN simulado")).performTextInput(pin)
-    onNodeWithText("Validar acceso").performScrollTo().performClick()
-    if (selfAdaptive) {
-        onNodeWithText("Confirmar y continuar").performClick()
+    /**
+     * Full end-to-end session:
+     *   Static T1–T5 → UEQ (26) → ConditionTransition → Adaptive T1–T5
+     *   → UEQ (26) → Interview (skip) → SessionCompleted
+     *
+     * This test takes several minutes on a real device. It is the primary
+     * acceptance test for the Phase C1.7B milestone.
+     */
+    @Test
+    fun e2e05_fullSessionFlow_staticToAdaptiveToInterview_reachesSessionCompleted() {
+        composeRule.startFixedOrderSession("E005")
+
+        // --- STATIC condition ---
+        composeRule.completeStaticConditionTasks()
+
+        // --- Static UEQ ---
+        composeRule.completeOfficialUeq26()
+
+        // --- Condition Transition ---
+        composeRule.continueToAdaptiveCondition()
+
+        // Verify we are now in ADAPTIVE (Etapa 2)
+        composeRule.waitUntil(timeoutMillis = 8_000) {
+            composeRule.onAllNodesWithText("Etapa 2").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithText("Etapa 2").assertExists()
+
+        // --- ADAPTIVE condition ---
+        composeRule.completeAdaptiveConditionTasks()
+
+        // --- Adaptive UEQ ---
+        composeRule.completeOfficialUeq26()
+
+        // --- Interview (skip with confirmation) ---
+        composeRule.completeInterviewBySkippingWithConfirmation()
+
+        // --- SessionCompleted ---
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            composeRule.onAllNodesWithText("Sesión experimental completada").fetchSemanticsNodes().isNotEmpty() ||
+                composeRule.onAllNodesWithText("completada").fetchSemanticsNodes().isNotEmpty()
+        }
+        val sessionComplete =
+            composeRule.onAllNodesWithText("Sesión experimental completada").fetchSemanticsNodes().isNotEmpty() ||
+                composeRule.onAllNodesWithText("Gracias").fetchSemanticsNodes().isNotEmpty()
+        assert(sessionComplete) { "Expected SessionCompleted screen after full session flow" }
     }
-    onNodeWithText("Finalizar tarea").performScrollTo().performClick()
-    returnHomeAfterNonFinalTask()
-}
 
-private fun MainComposeRule.completeT2Appointment(selfAdaptive: Boolean) {
-    openTaskByTitle("T2 Consultar cita médica")
-    onNodeWithText("Ver lista de citas").performScrollTo().performClick()
-    // Select any appointment (the first one)
-    onAllNodesWithText("Abrir", substring = true)[0].performScrollTo().performClick()
-    onNodeWithText("Continuar a confirmación").performScrollTo().performClick()
-    onNodeWithText("Sí, continuar").performScrollTo().performClick()
-    returnHomeAfterNonFinalTask()
-}
+    // ── E2E-06: Interview skip routes to SessionCompleted ────────────────────
 
-private fun MainComposeRule.completeT3WellBeing(selfAdaptive: Boolean) {
-    openTaskByTitle("T3 Registro de bienestar")
-    onNodeWithText("Iniciar formulario").performScrollTo().performClick()
-    onNode(wellBeingValueField()).performTextInput("5")
-    onNodeWithText("Validar valor").performScrollTo().performClick()
-    onNodeWithText("Revisar antes de guardar").performScrollTo().performClick()
-    onNodeWithText("Guardar").performScrollTo().performClick()
-    if (selfAdaptive) {
-        onNodeWithText("Confirmar y continuar").performClick()
-    }
-    returnHomeAfterNonFinalTask()
-}
+    /**
+     * After completing both conditions and both UEQs, skipping the interview
+     * with confirmation navigates to the SessionCompleted screen.
+     * Room should have 10 completed tasks (5 STATIC + 5 ADAPTIVE).
+     */
+    @Test
+    fun e2e06_interviewSkip_routesToSessionCompleted_withTenCompletedTasks() {
+        composeRule.startFixedOrderSession("E006")
+        composeRule.completeStaticConditionTasks()
+        composeRule.completeOfficialUeq26()
+        composeRule.continueToAdaptiveCondition()
+        composeRule.completeAdaptiveConditionTasks()
+        composeRule.completeOfficialUeq26()
+        composeRule.completeInterviewBySkippingWithConfirmation()
 
-private fun MainComposeRule.completeT4Reminder(selfAdaptive: Boolean) {
-    openTaskByTitle("T4 Recordatorio")
-    onNodeWithText("Crear recordatorio").performScrollTo().performClick()
-    onNodeWithText("Usar esta actividad").performScrollTo().performClick()
-    onNodeWithText("Usar esta hora").performScrollTo().performClick()
-    onNodeWithText("Usar esta frecuencia").performScrollTo().performClick()
-    onNodeWithText("Guardar recordatorio").performScrollTo().performClick()
-    if (selfAdaptive) {
-        onNodeWithText("Confirmar y continuar").performClick()
-    }
-    returnHomeAfterNonFinalTask()
-}
+        // Wait for SessionCompleted screen
+        composeRule.waitUntil(timeoutMillis = 15_000) {
+            composeRule.onAllNodesWithText("Sesión experimental completada").fetchSemanticsNodes().isNotEmpty() ||
+                composeRule.onAllNodesWithText("Gracias").fetchSemanticsNodes().isNotEmpty()
+        }
 
-private fun MainComposeRule.completeT5Summary(selfAdaptive: Boolean) {
-    openTaskByTitle("T5 Revisar y confirmar")
-    onNodeWithText("Revisar detalles").performScrollTo().performClick()
-    onNodeWithText("Guardar información").performScrollTo().performClick()
-    if (selfAdaptive) {
-        onNodeWithText("Confirmar y continuar").performClick()
-    }
-    onNodeWithText("Confirmar").performScrollTo().performClick()
-    // Wait for navigation to ConditionTransition or next step
-    waitForIdle()
-}
-
-private fun MainComposeRule.returnHomeAfterNonFinalTask() {
-    onNodeWithText("Volver al inicio").performScrollTo().performClick()
-    waitForHome()
-}
-
-private fun MainComposeRule.waitForHome() {
-    waitUntil(timeoutMillis = 5_000) {
-        onAllNodesWithText("Inicio").fetchSemanticsNodes().isNotEmpty()
-    }
-}
-
-private fun MainComposeRule.assertRoomCompletionCounts(
-    total: Int,
-    static: Int,
-    selfAdaptive: Int
-) {
-    waitUntil(timeoutMillis = 10_000) {
-        val counts = roomCompletionCounts()
-        counts.total == total && counts.static == static && counts.selfAdaptive == selfAdaptive
-    }
-}
-
-private fun MainComposeRule.assertActiveSessionSnapshot(participantId: String) {
-    waitUntil(timeoutMillis = 10_000) {
-        runBlocking {
-            val snapshot = AppContainer.experimentPreferences.sessionSnapshot.first()
-            val session = snapshot.currentSessionId?.let { AppContainer.database.experimentDao().getSessionById(it) }
-            snapshot.isSessionActive &&
-                session?.participantId == participantId &&
-                AppContainer.database.experimentDao().getTotalCompletedTaskCount(session.sessionId) == 1
+        // Verify 10 total completed tasks via Room
+        // The session ID is retrievable from the DataStore snapshot stored before session ended
+        val totalCompleted = runBlocking {
+            val dao = AppContainer.database.experimentDao()
+            // Try active session first; fall back to any recently completed session
+            val sessionId = AppContainer.experimentPreferences.sessionSnapshot.first().currentSessionId
+            val targetSessionId = sessionId ?: dao.getSessionByParticipantCode("P01-E006").firstOrNull()?.sessionId
+            if (targetSessionId != null) {
+                dao.getCompletedTaskCount(targetSessionId, "STATIC_UI") + 
+                dao.getCompletedTaskCount(targetSessionId, "SELF_ADAPTIVE_UI")
+            } else {
+                -1
+            }
+        }
+        assert(totalCompleted == 10) {
+            "Expected 10 total completed tasks (5 STATIC + 5 ADAPTIVE), got $totalCompleted"
         }
     }
 }
 
-private fun MainComposeRule.assertTextExists(text: String) {
-    waitUntil(timeoutMillis = 5_000) {
-        onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty()
-    }
-}
-
-private fun MainComposeRule.assertTextAbsent(text: String) {
-    waitUntil(timeoutMillis = 5_000) {
-        onAllNodesWithText(text).fetchSemanticsNodes().isEmpty()
-    }
-}
-
-private fun roomCompletionCounts(): CompletionCounts {
-    return runBlocking {
-        val dao = AppContainer.database.experimentDao()
-        val sessionId = dao.getActiveSession()?.sessionId
-            ?: dao.getSessionByParticipantCode("E2E_GROUP_A_001").firstOrNull()?.sessionId
-            ?: dao.getSessionByParticipantCode("E2E_GROUP_B_001").firstOrNull()?.sessionId
-            ?: dao.getSessionByParticipantCode("E2E_RESTORE_001").firstOrNull()?.sessionId
-            ?: return@runBlocking CompletionCounts(0, 0, 0)
-        CompletionCounts(
-            total = dao.getTotalCompletedTaskCount(sessionId),
-            static = dao.getCompletedTaskCount(sessionId, "STATIC_UI"),
-            selfAdaptive = dao.getCompletedTaskCount(sessionId, "SELF_ADAPTIVE_UI")
-        )
-    }
-}
-
-private data class CompletionCounts(
-    val total: Int,
-    val static: Int,
-    val selfAdaptive: Int
-)

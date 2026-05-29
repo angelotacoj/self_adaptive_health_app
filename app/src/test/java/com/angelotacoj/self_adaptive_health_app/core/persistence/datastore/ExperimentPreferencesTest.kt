@@ -33,7 +33,7 @@ class ExperimentPreferencesTest {
     private val dataSet = FakeHealthDataSet(
         id = "SET_A",
         accessCredentials = AccessCredentials("U", "P"),
-        appointment = Appointment("T", "D", "T", "I"),
+        appointment = Appointment("T", "D", "T", "I", "P", "S", "L", "P", "I", "A"),
         appointmentOptions = emptyList(),
         wellBeingRecord = WellBeingRecord("L", 1),
         reminder = ReminderTemplate("A", "T", "F")

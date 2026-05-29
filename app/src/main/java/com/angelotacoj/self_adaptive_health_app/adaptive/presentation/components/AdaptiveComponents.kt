@@ -7,10 +7,18 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Surface
+import androidx.compose.ui.window.Dialog
 import androidx.compose.material3.SnackbarData
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CardDefaults
@@ -128,39 +136,78 @@ fun AdaptiveConfirmationDialog(
     adaptiveUiState: AdaptiveUiState = AdaptiveUiState()
 ) {
     if (!adaptiveUiState.isAdaptiveMode || pending == null || pending.validationType != ValidationType.EXPLICIT) return
-    AlertDialog(
-        containerColor = Color.White,
-        onDismissRequest = onCancel,
-        shape = RoundedCornerShape(28.dp),
-        title = { Text(pending.title, style = MaterialTheme.typography.titleLarge.scaled(adaptiveUiState)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Text(pending.message, style = MaterialTheme.typography.bodyLarge.scaled(adaptiveUiState))
+    Dialog(onDismissRequest = onCancel) {
+        Surface(
+            shape = RoundedCornerShape(28.dp),
+            color = Color.White,
+            modifier = Modifier.fillMaxWidth().heightIn(max = 700.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(vertical = 24.dp)
+            ) {
+                // Header
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 12.dp)
+                ) {
+                    Text(
+                        pending.title,
+                        style = MaterialTheme.typography.titleLarge.scaled(adaptiveUiState),
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        pending.message,
+                        style = MaterialTheme.typography.bodyLarge.scaled(adaptiveUiState)
+                    )
+                }
+
+                // Scrollable Content Area
                 if (pending.reviewSummary != null) {
-                    ElevatedCard(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(pending.reviewSummary.title, style = MaterialTheme.typography.titleMedium.scaled(adaptiveUiState), fontWeight = FontWeight.Bold)
-                            pending.reviewSummary.details.forEach { (label, value) ->
-                                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                    Text(label, style = MaterialTheme.typography.bodyMedium.scaled(adaptiveUiState), color = MaterialTheme.colorScheme.primary)
-                                    Text(value, style = MaterialTheme.typography.bodyLarge.scaled(adaptiveUiState))
+                    Box(modifier = Modifier.padding(horizontal = 24.dp).padding(bottom = 12.dp)) {
+                        ElevatedCard(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(
+                                    pending.reviewSummary.title,
+                                    style = MaterialTheme.typography.titleMedium.scaled(adaptiveUiState),
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    "Esta información es parte de una simulación. No corresponde a datos médicos reales.",
+                                    style = MaterialTheme.typography.bodySmall.scaled(adaptiveUiState),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                pending.reviewSummary.details.forEach { (label, value) ->
+                                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                        Text(label, style = MaterialTheme.typography.bodyMedium.scaled(adaptiveUiState), color = MaterialTheme.colorScheme.primary)
+                                        Text(value, style = MaterialTheme.typography.bodyLarge.scaled(adaptiveUiState))
+                                    }
                                 }
                             }
                         }
                     }
                 }
-                LargePrimaryButton(text = "Confirmar y continuar", onClick = onConfirm, adaptiveUiState = adaptiveUiState)
-                LargeSecondaryButton(text = "Revisar datos", onClick = onEdit, adaptiveUiState = adaptiveUiState)
-                LargeSecondaryButton(text = "Cancelar", onClick = onCancel, adaptiveUiState = adaptiveUiState)
+
+                // Footer (Actions)
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp).padding(top = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    LargePrimaryButton(text = "Confirmar información simulada", onClick = onConfirm, adaptiveUiState = adaptiveUiState)
+                    LargeSecondaryButton(text = "Editar", onClick = onEdit, adaptiveUiState = adaptiveUiState)
+                    LargeSecondaryButton(text = "Cancelar", onClick = onCancel, adaptiveUiState = adaptiveUiState)
+                }
             }
-        },
-        confirmButton = {},
-        dismissButton = {}
-    )
+        }
+    }
 }
 
 @Composable

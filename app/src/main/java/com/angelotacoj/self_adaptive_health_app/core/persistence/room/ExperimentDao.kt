@@ -50,7 +50,7 @@ interface ExperimentDao {
     )
     suspend fun markTaskCompleted(sessionId: String, condition: String, taskId: String, endedAt: Long)
 
-    @Query("SELECT COUNT(*) FROM task_runs WHERE sessionId = :sessionId AND condition = :condition AND completed = 1")
+    @Query("SELECT COUNT(DISTINCT taskId) FROM task_runs WHERE sessionId = :sessionId AND condition = :condition AND completed = 1")
     suspend fun getCompletedTaskCount(sessionId: String, condition: String): Int
 
     @Query("SELECT COUNT(*) FROM task_runs WHERE sessionId = :sessionId AND completed = 1")

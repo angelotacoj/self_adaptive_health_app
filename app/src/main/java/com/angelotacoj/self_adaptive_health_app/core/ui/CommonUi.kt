@@ -42,8 +42,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
-
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.material3.RadioButton
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.input.pointer.pointerInput
 import com.angelotacoj.self_adaptive_health_app.adaptive.presentation.components.LocalAdaptiveEvent
 import com.angelotacoj.self_adaptive_health_app.adaptive.presentation.components.LocalCurrentScreenId
@@ -342,7 +343,7 @@ fun LargePrimaryButton(
         shape = RoundedCornerShape(StaticUiDefaults.ButtonRadius),
         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
     ) {
-        Text(text = text, style = MaterialTheme.typography.titleMedium.copy(fontSize = scaled(StaticUiDefaults.BodySize, adaptiveUiState)))
+        Text(text = text, style = MaterialTheme.typography.titleMedium.copy(fontSize = scaled(StaticUiDefaults.BodySize, adaptiveUiState)), maxLines = 1)
     }
 }
 
@@ -371,7 +372,7 @@ fun LargeSecondaryButton(
         shape = RoundedCornerShape(StaticUiDefaults.ButtonRadius),
         colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary)
     ) {
-        Text(text = text, style = MaterialTheme.typography.titleMedium.copy(fontSize = scaled(StaticUiDefaults.BodySize, adaptiveUiState)))
+        Text(text = text, style = MaterialTheme.typography.titleMedium.copy(fontSize = scaled(StaticUiDefaults.BodySize, adaptiveUiState)), maxLines = 1)
     }
 }
 
@@ -567,7 +568,10 @@ fun ButtonRow(
     onSecondary: () -> Unit,
     adaptiveUiState: AdaptiveUiState = AdaptiveUiState()
 ) {
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
         LargeSecondaryButton(text = secondaryText, onClick = onSecondary, modifier = Modifier.weight(1f), adaptiveUiState = adaptiveUiState)
         LargePrimaryButton(text = primaryText, onClick = onPrimary, modifier = Modifier.weight(1f), adaptiveUiState = adaptiveUiState)
     }
@@ -580,7 +584,7 @@ private fun parseProgress(stepText: String): Float {
 
 @Composable
 fun NoticeBanner(message: String, isError: Boolean = false) {
-    androidx.compose.foundation.layout.Box(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp)
@@ -604,19 +608,18 @@ fun CheckableOptionRow(
     selected: Boolean,
     onClick: () -> Unit
 ) {
-    androidx.compose.foundation.layout.Row(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp)
             .clickable(onClick = onClick)
-            .padding(8.dp),
-        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+            .padding(2.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        androidx.compose.material3.RadioButton(
+        RadioButton(
             selected = selected,
             onClick = onClick
         )
-        androidx.compose.foundation.layout.Spacer(Modifier.width(8.dp))
-        Text(text = label, style = MaterialTheme.typography.bodyLarge)
+        Spacer(Modifier.width(4.dp))
+        Text(text = label, style = MaterialTheme.typography.bodyMedium)
     }
 }

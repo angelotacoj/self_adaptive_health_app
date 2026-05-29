@@ -114,6 +114,7 @@ fun AccessScreen(
             onConfirm = {
                 onApplyAdaptation()
                 onAction(AccessAction.AccessValidated)
+                onTaskCompleted()
             },
             onEdit = onRejectAdaptation,
             onCancel = onRejectAdaptation,

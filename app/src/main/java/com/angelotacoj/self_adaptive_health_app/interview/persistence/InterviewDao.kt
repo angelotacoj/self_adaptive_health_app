@@ -42,4 +42,29 @@ interface InterviewDao {
     /** Delete all interview data (researcher panel wipe). */
     @Query("DELETE FROM interview_responses")
     suspend fun deleteAllResponses()
+
+    // ---- Interview Status ----
+
+    /**
+     * Persist interview status (SAVED or SKIPPED) for a session.
+     * Only called after an explicit evaluator action.
+     */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertInterviewStatus(entity: InterviewStatusEntity)
+
+    /**
+     * Returns the persisted interview status for the session, or null if PENDING.
+     * A missing row means the interview has not been finished yet.
+     */
+    @Query("SELECT * FROM interview_status WHERE participantId = :participantId AND sessionId = :sessionId LIMIT 1")
+    suspend fun getInterviewStatus(participantId: String, sessionId: String): InterviewStatusEntity?
+
+    /** Delete interview status for a session (cascade delete support). */
+    @Query("DELETE FROM interview_status WHERE sessionId = :sessionId")
+    suspend fun deleteInterviewStatusForSession(sessionId: String)
+
+    /** Delete all interview statuses (researcher panel wipe). */
+    @Query("DELETE FROM interview_status")
+    suspend fun deleteAllInterviewStatuses()
 }
+

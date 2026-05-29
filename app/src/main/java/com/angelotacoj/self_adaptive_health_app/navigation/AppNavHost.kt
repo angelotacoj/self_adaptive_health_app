@@ -1,44 +1,47 @@
 package com.angelotacoj.self_adaptive_health_app.navigation
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.height
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.material3.SnackbarDuration
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.engine.ExtendedMapeKCoordinator
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.AdaptiveInteractionEventType
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.ExperimentCondition
 import com.angelotacoj.self_adaptive_health_app.adaptive.domain.repository.KnowledgeRepository
-import com.angelotacoj.self_adaptive_health_app.adaptive.presentation.components.LocalAdaptiveEvent
 import com.angelotacoj.self_adaptive_health_app.adaptive.presentation.components.AdaptiveSnackbar
+import com.angelotacoj.self_adaptive_health_app.adaptive.presentation.components.LocalAdaptiveEvent
 import com.angelotacoj.self_adaptive_health_app.adaptive.presentation.state.AdaptiveUiState
 import com.angelotacoj.self_adaptive_health_app.adaptive.presentation.viewmodel.AdaptiveViewModel
 import com.angelotacoj.self_adaptive_health_app.core.logging.DebugLogEntry
-import com.angelotacoj.self_adaptive_health_app.core.logging.ExperimentLogger
 import com.angelotacoj.self_adaptive_health_app.core.logging.InteractionEventType
 import com.angelotacoj.self_adaptive_health_app.core.logging.MapeKLog
 import com.angelotacoj.self_adaptive_health_app.core.logging.ScreenId
@@ -47,28 +50,24 @@ import com.angelotacoj.self_adaptive_health_app.core.model.ExperimentGroup
 import com.angelotacoj.self_adaptive_health_app.core.model.ExperimentSessionState
 import com.angelotacoj.self_adaptive_health_app.core.model.completedTaskCount
 import com.angelotacoj.self_adaptive_health_app.core.model.conditionOrder
-import com.angelotacoj.self_adaptive_health_app.core.model.isCurrentConditionComplete
-import com.angelotacoj.self_adaptive_health_app.core.model.isExperimentComplete
 import com.angelotacoj.self_adaptive_health_app.core.model.isTaskAvailableInCurrentCondition
 import com.angelotacoj.self_adaptive_health_app.core.model.totalRequiredTaskRuns
 import com.angelotacoj.self_adaptive_health_app.core.persistence.room.ParticipantSessionEntity
 import com.angelotacoj.self_adaptive_health_app.core.persistence.room.TaskRunEntity
 import com.angelotacoj.self_adaptive_health_app.core.ui.InstructionCard
 import com.angelotacoj.self_adaptive_health_app.core.ui.LargePrimaryButton
-import com.angelotacoj.self_adaptive_health_app.core.ui.ScreenContainer
 import com.angelotacoj.self_adaptive_health_app.core.ui.LargeSecondaryButton
+import com.angelotacoj.self_adaptive_health_app.core.ui.ScreenContainer
 import com.angelotacoj.self_adaptive_health_app.debug.DebugLogsScreen
 import com.angelotacoj.self_adaptive_health_app.di.AppContainer
 import com.angelotacoj.self_adaptive_health_app.experiment.ExperimentSetupScreen
 import com.angelotacoj.self_adaptive_health_app.experiment.ExperimentSetupViewModel
 import com.angelotacoj.self_adaptive_health_app.healthtasks.access.AccessAction
-import com.angelotacoj.self_adaptive_health_app.healthtasks.access.AccessEvent
 import com.angelotacoj.self_adaptive_health_app.healthtasks.access.AccessScreen
 import com.angelotacoj.self_adaptive_health_app.healthtasks.access.AccessViewModel
 import com.angelotacoj.self_adaptive_health_app.healthtasks.appointments.AppointmentAction
 import com.angelotacoj.self_adaptive_health_app.healthtasks.appointments.AppointmentScreen
 import com.angelotacoj.self_adaptive_health_app.healthtasks.appointments.AppointmentViewModel
-import com.angelotacoj.self_adaptive_health_app.healthtasks.home.HomeAction
 import com.angelotacoj.self_adaptive_health_app.healthtasks.home.HomeScreen
 import com.angelotacoj.self_adaptive_health_app.healthtasks.home.HomeState
 import com.angelotacoj.self_adaptive_health_app.healthtasks.home.HomeViewModel
@@ -81,21 +80,17 @@ import com.angelotacoj.self_adaptive_health_app.healthtasks.summary.SummaryViewM
 import com.angelotacoj.self_adaptive_health_app.healthtasks.wellbeing.WellBeingAction
 import com.angelotacoj.self_adaptive_health_app.healthtasks.wellbeing.WellBeingScreen
 import com.angelotacoj.self_adaptive_health_app.healthtasks.wellbeing.WellBeingViewModel
-import com.angelotacoj.self_adaptive_health_app.ui.theme.Self_Adaptive_Health_AppTheme
-import com.angelotacoj.self_adaptive_health_app.ueq.presentation.UeqEvent
-import com.angelotacoj.self_adaptive_health_app.ueq.presentation.UeqScreen
-import com.angelotacoj.self_adaptive_health_app.ueq.presentation.UeqViewModel
 import com.angelotacoj.self_adaptive_health_app.interview.presentation.InterviewEvent
 import com.angelotacoj.self_adaptive_health_app.interview.presentation.InterviewScreen
 import com.angelotacoj.self_adaptive_health_app.interview.presentation.InterviewViewModel
+import com.angelotacoj.self_adaptive_health_app.ueq.presentation.UeqEvent
+import com.angelotacoj.self_adaptive_health_app.ueq.presentation.UeqScreen
+import com.angelotacoj.self_adaptive_health_app.ueq.presentation.UeqViewModel
+import com.angelotacoj.self_adaptive_health_app.ui.theme.Self_Adaptive_Health_AppTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import android.app.Activity
-import android.content.Context
-import android.content.ContextWrapper
-import androidx.compose.ui.platform.LocalContext
 
 private fun Context.findActivity(): Activity? {
     var context = this
@@ -105,8 +100,6 @@ private fun Context.findActivity(): Activity? {
     }
     return null
 }
-
-
 
 class AdaptiveViewModelFactory(
     private val coordinator: ExtendedMapeKCoordinator,
@@ -323,10 +316,6 @@ fun AppNavHost(
         }
     }
 
-
-
-
-
     fun processAdaptiveEvent(taskId: TaskId?, screenId: ScreenId, type: AdaptiveInteractionEventType, summary: com.angelotacoj.self_adaptive_health_app.adaptive.domain.model.ReviewSummary? = null): Boolean {
         return adaptiveViewModel.processAdaptiveEvent(activeSession(), taskId, screenId, type, summary)
     }
@@ -351,25 +340,16 @@ fun AppNavHost(
         adaptiveViewModel.keepLastAdaptation()
     }
 
-
-    fun completeTask(taskId: TaskId, screenId: ScreenId, message: String) {
+    fun completeTask(taskId: TaskId, screenId: ScreenId, message: String, onPersist: suspend () -> Unit = {}) {
         val session = activeSession() ?: return
         val sessionForCompletion = if (session.currentTaskId == taskId) session else session.startTask(taskId)
         val completedTaskState = sessionForCompletion.finishCurrentTask()
-        val conditionDone = completedTaskState.isCurrentConditionComplete()
-        val finalDone = completedTaskState.isExperimentComplete()
-        val nextState = if (finalDone) completedTaskState.finishSession() else completedTaskState
-        if (finalDone) {
-            sessionCompletedState = nextState
-        } else {
-            sessionState = nextState
-        }
+        
         log(session.logEntry(InteractionEventType.TASK_COMPLETED, taskId, screenId, message))
-        if (conditionDone) {
-            log(session.logEntry(InteractionEventType.CONDITION_COMPLETED, screenId = screenId, message = "${session.currentCondition} condition completed."))
-            MapeKLog.experiment("condition completed condition=${session.currentCondition}")
-        }
+        
         scope.launch {
+            onPersist()
+            
             val dao = AppContainer.database.experimentDao()
             dao.markTaskCompleted(
                 sessionId = session.sessionId,
@@ -377,23 +357,41 @@ fun AppNavHost(
                 taskId = taskId.name,
                 endedAt = System.currentTimeMillis()
             )
+            
+            val currentConditionCompletedCount = dao.getCompletedTaskCount(session.sessionId, session.currentCondition.name)
+            val conditionDone = currentConditionCompletedCount >= com.angelotacoj.self_adaptive_health_app.core.model.ExperimentTaskOrder.size
+            val finalDone = conditionDone && (completedTaskState.currentConditionIndex == completedTaskState.conditionOrder.lastIndex)
+            val nextState = if (finalDone) completedTaskState.finishSession() else completedTaskState
+            
             if (finalDone) {
                 dao.markParticipantSessionEnded(nextState.sessionId, System.currentTimeMillis(), true)
             }
             AppContainer.experimentPreferences.saveSession(nextState)
             MapeKLog.experiment("total completed tasks=${dao.getTotalCompletedTaskCount(session.sessionId)}/${session.totalRequiredTaskRuns()}")
-        }
-        if (conditionDone) {
-            ueqConditionState = completedTaskState
-            if (!finalDone && completedTaskState.currentConditionIndex < completedTaskState.conditionOrder.lastIndex) {
-                conditionTransitionState = completedTaskState
-            } else {
-                sessionCompletedState = completedTaskState
-                MapeKLog.experiment("session completed total=${nextState.completedTaskCount()}/${nextState.totalRequiredTaskRuns()}")
-            }
-            navController.navigate(AppRoute.Ueq.route)
-            if (finalDone) {
-                sessionState = nextState
+            
+            withContext(Dispatchers.Main) {
+                if (finalDone) {
+                    sessionCompletedState = nextState
+                } else {
+                    sessionState = nextState
+                }
+                
+                if (conditionDone) {
+                    log(session.logEntry(InteractionEventType.CONDITION_COMPLETED, screenId = screenId, message = "${session.currentCondition} condition completed."))
+                    MapeKLog.experiment("condition completed condition=${session.currentCondition}")
+                    
+                    ueqConditionState = completedTaskState
+                    if (!finalDone && completedTaskState.currentConditionIndex < completedTaskState.conditionOrder.lastIndex) {
+                        conditionTransitionState = completedTaskState
+                    } else {
+                        sessionCompletedState = completedTaskState
+                        MapeKLog.experiment("session completed total=${nextState.completedTaskCount()}/${nextState.totalRequiredTaskRuns()}")
+                    }
+                    navController.navigate(AppRoute.Ueq.route)
+                    if (finalDone) {
+                        sessionState = nextState
+                    }
+                }
             }
         }
     }
@@ -688,7 +686,8 @@ fun AppNavHost(
                                 put("simulatedAccessCompleted", true)
                                 put("note", "No se usó una cuenta real ni un registro clínico real.")
                             }.toString()
-                            scope.launch {
+                            viewModel.finishTask()
+                            completeTask(TaskId.T1_ACCESS, ScreenId.ACCESS_COMPLETED, "T1 access completed.") {
                                 AppContainer.database.experimentDao().insertTaskOutput(
                                     com.angelotacoj.self_adaptive_health_app.core.persistence.room.TaskOutputEntity(
                                         participantId = session.participantId,
@@ -702,8 +701,6 @@ fun AppNavHost(
                                     )
                                 )
                             }
-                            viewModel.finishTask()
-                            completeTask(TaskId.T1_ACCESS, ScreenId.ACCESS_COMPLETED, "T1 access completed.")
                         },
                         onExit = { navController.popBackStack(AppRoute.Home.route, inclusive = false) }
                     )
@@ -748,7 +745,7 @@ fun AppNavHost(
                                 put("accessibilityNote", appointment?.accessibilityNote)
                                 put("simulationNote", "Esta es una simulación.")
                             }.toString()
-                            scope.launch {
+                            completeTask(TaskId.T2_APPOINTMENT, ScreenId.APPOINTMENT_COMPLETED, "T2 appointment completed.") {
                                 AppContainer.database.experimentDao().insertTaskOutput(
                                     com.angelotacoj.self_adaptive_health_app.core.persistence.room.TaskOutputEntity(
                                         participantId = session.participantId,
@@ -762,7 +759,6 @@ fun AppNavHost(
                                     )
                                 )
                             }
-                            completeTask(TaskId.T2_APPOINTMENT, ScreenId.APPOINTMENT_COMPLETED, "T2 appointment completed.")
                         },
                         onExit = { navController.popBackStack(AppRoute.Home.route, inclusive = false) }
                     )                }
@@ -792,7 +788,7 @@ fun AppNavHost(
                                     put("completedAt", System.currentTimeMillis())
                                     put("simulatedHealthData", true)
                                 }.toString()
-                                scope.launch {
+                                completeTask(TaskId.T3_WELL_BEING, screen, message) {
                                     AppContainer.database.experimentDao().insertTaskOutput(
                                         com.angelotacoj.self_adaptive_health_app.core.persistence.room.TaskOutputEntity(
                                             participantId = session.participantId,
@@ -806,7 +802,6 @@ fun AppNavHost(
                                         )
                                     )
                                 }
-                                completeTask(TaskId.T3_WELL_BEING, screen, message)
                             } else {
                                 log(session.logEntry(type, TaskId.T3_WELL_BEING, screen, message))
                             }
@@ -848,7 +843,7 @@ fun AppNavHost(
                                     put("noRealNotification", true)
                                     put("completedAt", System.currentTimeMillis())
                                 }.toString()
-                                scope.launch {
+                                completeTask(TaskId.T4_REMINDER, screen, message) {
                                     AppContainer.database.experimentDao().insertTaskOutput(
                                         com.angelotacoj.self_adaptive_health_app.core.persistence.room.TaskOutputEntity(
                                             participantId = session.participantId,
@@ -862,7 +857,6 @@ fun AppNavHost(
                                         )
                                     )
                                 }
-                                completeTask(TaskId.T4_REMINDER, screen, message)
                             } else {
                                 log(session.logEntry(type, TaskId.T4_REMINDER, screen, message))
                             }
@@ -905,7 +899,7 @@ fun AppNavHost(
                                     put("finalSimulatedInformationConfirmed", true)
                                     put("timestamp", System.currentTimeMillis())
                                 }.toString()
-                                scope.launch {
+                                completeTask(TaskId.T5_SUMMARY, screen, message) {
                                     AppContainer.database.experimentDao().insertTaskOutput(
                                         com.angelotacoj.self_adaptive_health_app.core.persistence.room.TaskOutputEntity(
                                             participantId = session.participantId,
@@ -919,7 +913,6 @@ fun AppNavHost(
                                         )
                                     )
                                 }
-                                completeTask(TaskId.T5_SUMMARY, screen, message)
                             } else {
                                 log(session.logEntry(type, TaskId.T5_SUMMARY, screen, message))
                             }
@@ -954,7 +947,9 @@ fun AppNavHost(
                     LargePrimaryButton(
                         "Continuar con la segunda interfaz",
                         {
-                            val next = completed.moveToNextCondition()
+                            val nextConditionIndex = completed.currentConditionIndex + 1
+                            val nextDataSet = com.angelotacoj.self_adaptive_health_app.di.AppContainer.fakeHealthDataSource.dataSets[nextConditionIndex % com.angelotacoj.self_adaptive_health_app.di.AppContainer.fakeHealthDataSource.dataSets.size]
+                            val next = completed.moveToNextCondition().copy(currentDataSet = nextDataSet)
                             sessionState = next
                             conditionTransitionState = null
                             applyProfileToAdaptiveState(next)
@@ -1070,7 +1065,21 @@ fun AppNavHost(
                         participantId = interviewSession.participantId,
                         sessionId = interviewSession.sessionId,
                         onFinished = {
-                            // onFinished is a callback – navigation happens in isSaved LaunchedEffect below
+                            // Interview status has already been persisted in InterviewViewModel
+                            // before onFinished is called. Now mark the participant session ended.
+                            scope.launch {
+                                AppContainer.database.experimentDao().markParticipantSessionEnded(
+                                    sessionId = interviewSession.sessionId,
+                                    endedAt = System.currentTimeMillis(),
+                                    isCompleted = true
+                                )
+                                withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                    navController.navigate(AppRoute.SessionCompleted.route) {
+                                        popUpTo(AppRoute.Home.route) { inclusive = true }
+                                        launchSingleTop = true
+                                    }
+                                }
+                            }
                         }
                     )
                     log(
@@ -1082,22 +1091,11 @@ fun AppNavHost(
                     )
                 }
 
-                LaunchedEffect(interviewState.isSaved) {
-                    if (interviewState.isSaved) {
-                        // Determine whether it was saved or skipped
-                        // (both set isSaved = true; skip path doesn't persist entities)
-                        navController.navigate(AppRoute.SessionCompleted.route) {
-                            popUpTo(AppRoute.Home.route) { inclusive = true }
-                            launchSingleTop = true
-                        }
-                    }
-                }
-
                 InterviewScreen(
                     state = interviewState,
                     onEvent = { event ->
                         when (event) {
-                            is InterviewEvent.Save -> {
+                            is InterviewEvent.Save, is InterviewEvent.ConfirmEmptySave -> {
                                 log(
                                     interviewSession.logEntry(
                                         eventType = InteractionEventType.INTERVIEW_SAVED,
@@ -1106,7 +1104,7 @@ fun AppNavHost(
                                     )
                                 )
                             }
-                            is InterviewEvent.Skip -> {
+                            is InterviewEvent.ConfirmSkip -> {
                                 log(
                                     interviewSession.logEntry(
                                         eventType = InteractionEventType.INTERVIEW_SKIPPED,
@@ -1122,6 +1120,7 @@ fun AppNavHost(
                 )
             }
         }
+
 
         composable(AppRoute.SessionCompleted.route) {
             val completed = sessionCompletedState ?: sessionState
@@ -1164,6 +1163,7 @@ fun AppNavHost(
                             AppContainer.database.experimentDao().deleteSessionCascade(current.sessionId)
                             AppContainer.database.ueqDao().deleteResponsesForSession(current.sessionId)
                             AppContainer.database.interviewDao().deleteResponsesForSession(current.sessionId)
+                            AppContainer.database.interviewDao().deleteInterviewStatusForSession(current.sessionId)
                             AppContainer.experimentPreferences.clearActiveSessionPreferences()
                             knowledge.clearCurrentTaskAdaptationMemory()
                             sessionState = null
@@ -1184,6 +1184,7 @@ fun AppNavHost(
                         AppContainer.database.experimentDao().deleteAllResearchData()
                         AppContainer.database.ueqDao().deleteAllUeqResponses()
                         AppContainer.database.interviewDao().deleteAllResponses()
+                        AppContainer.database.interviewDao().deleteAllInterviewStatuses()
                         AppContainer.experimentPreferences.clearActiveSessionPreferences()
                         knowledge.clearCurrentTaskAdaptationMemory()
                         logger.clear()

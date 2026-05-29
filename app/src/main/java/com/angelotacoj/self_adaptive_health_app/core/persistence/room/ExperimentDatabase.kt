@@ -6,6 +6,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.angelotacoj.self_adaptive_health_app.interview.persistence.InterviewDao
 import com.angelotacoj.self_adaptive_health_app.interview.persistence.InterviewResponseEntity
+import com.angelotacoj.self_adaptive_health_app.interview.persistence.InterviewStatusEntity
 import com.angelotacoj.self_adaptive_health_app.ueq.persistence.UeqDao
 import com.angelotacoj.self_adaptive_health_app.ueq.persistence.UeqResponseEntity
 
@@ -21,7 +22,8 @@ import com.angelotacoj.self_adaptive_health_app.ueq.persistence.UeqResponseEntit
         InitialUserProfileEntity::class,
         TaskOutputEntity::class,
         UeqResponseEntity::class,              // Phase C1: UEQ full 26-item responses
-        InterviewResponseEntity::class         // Phase C1.5: short semi-structured interview
+        InterviewResponseEntity::class,        // Phase C1.5: short semi-structured interview
+        InterviewStatusEntity::class           // Phase C1.5: interview completion status (SAVED/SKIPPED)
     ],
     version = 1,
     exportSchema = false
@@ -41,6 +43,7 @@ abstract class ExperimentDatabase : RoomDatabase() {
                     ExperimentDatabase::class.java,
                     "experiment_database"
                 )
+                .fallbackToDestructiveMigration()
                 .build().also { instance = it }
             }
         }

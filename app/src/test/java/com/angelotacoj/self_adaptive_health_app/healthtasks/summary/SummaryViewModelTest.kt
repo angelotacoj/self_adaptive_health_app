@@ -1,10 +1,5 @@
 package com.angelotacoj.self_adaptive_health_app.healthtasks.summary
 
-import com.angelotacoj.self_adaptive_health_app.core.model.AccessCredentials
-import com.angelotacoj.self_adaptive_health_app.core.model.Appointment
-import com.angelotacoj.self_adaptive_health_app.core.model.FakeHealthDataSet
-import com.angelotacoj.self_adaptive_health_app.core.model.ReminderTemplate
-import com.angelotacoj.self_adaptive_health_app.core.model.WellBeingRecord
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -12,16 +7,11 @@ import org.junit.Test
 
 class SummaryViewModelTest {
 
-    private val dataSet = FakeHealthDataSet(
-        id = "SET001",
-        accessCredentials = AccessCredentials("USER123", "1234"),
-        appointment = Appointment("Cita Dental", "20/05/2026", "10:00 AM", "Traer carnet"),
-        appointmentOptions = listOf(
-            Appointment("Cita Dental", "20/05/2026", "10:00 AM", "Traer carnet"),
-            Appointment("Cita Dental", "21/05/2026", "11:00 AM", "Traer carnet")
-        ),
-        wellBeingRecord = WellBeingRecord("Nivel de energía", 5),
-        reminder = ReminderTemplate("Caminar", "08:00 AM", "Diario")
+    private val taskOutputs = mapOf(
+        "T1_ACCESS" to "Código verificado.",
+        "T2_APPOINTMENT" to "Cita confirmada.",
+        "T3_WELL_BEING" to "Nivel de energía: 8",
+        "T4_REMINDER" to "Recordatorio configurado."
     )
     private val viewModel = SummaryViewModel()
 
@@ -31,24 +21,24 @@ class SummaryViewModelTest {
     }
 
     @Test
-    fun `start initializes state with dataSet and Intro step`() {
-        viewModel.start(dataSet)
+    fun `start initializes state with taskOutputs and Intro step`() {
+        viewModel.start(taskOutputs)
         val state = viewModel.state.value
         assertNotNull(state)
-        assertEquals("SET001", state?.dataSet?.id)
+        assertEquals(taskOutputs, state?.taskOutputs)
         assertEquals(SummaryStep.Intro, state?.step)
     }
 
     @Test
     fun `StartReviewClicked moves to Details step`() {
-        viewModel.start(dataSet)
+        viewModel.start(taskOutputs)
         viewModel.onAction(SummaryAction.StartReviewClicked)
         assertEquals(SummaryStep.Details, viewModel.state.value?.step)
     }
 
     @Test
     fun `SaveInformationClicked moves to ReinforcedConfirmation step`() {
-        viewModel.start(dataSet)
+        viewModel.start(taskOutputs)
         viewModel.onAction(SummaryAction.StartReviewClicked)
         viewModel.onAction(SummaryAction.SaveInformationClicked)
         assertEquals(SummaryStep.ReinforcedConfirmation, viewModel.state.value?.step)
@@ -56,7 +46,7 @@ class SummaryViewModelTest {
 
     @Test
     fun `ConfirmClicked moves to Final step with Confirmed result`() {
-        viewModel.start(dataSet)
+        viewModel.start(taskOutputs)
         viewModel.onAction(SummaryAction.StartReviewClicked)
         viewModel.onAction(SummaryAction.SaveInformationClicked)
         viewModel.onAction(SummaryAction.ConfirmClicked)
@@ -68,7 +58,7 @@ class SummaryViewModelTest {
 
     @Test
     fun `EditClicked moves back to Details step and clears result`() {
-        viewModel.start(dataSet)
+        viewModel.start(taskOutputs)
         viewModel.onAction(SummaryAction.StartReviewClicked)
         viewModel.onAction(SummaryAction.SaveInformationClicked)
         viewModel.onAction(SummaryAction.EditClicked)
@@ -76,11 +66,12 @@ class SummaryViewModelTest {
         val state = viewModel.state.value
         assertEquals(SummaryStep.Details, state?.step)
         assertNull(state?.result)
+        assertEquals("El participante seleccionó Editar. No se modificaron datos reales.", state?.editNote)
     }
 
     @Test
     fun `CancelClicked moves to Final step with Cancelled result`() {
-        viewModel.start(dataSet)
+        viewModel.start(taskOutputs)
         viewModel.onAction(SummaryAction.CancelClicked)
         
         val state = viewModel.state.value
@@ -90,7 +81,7 @@ class SummaryViewModelTest {
 
     @Test
     fun `BackClicked moves back through steps`() {
-        viewModel.start(dataSet)
+        viewModel.start(taskOutputs)
         
         viewModel.onAction(SummaryAction.StartReviewClicked)
         viewModel.onAction(SummaryAction.SaveInformationClicked)
@@ -104,5 +95,13 @@ class SummaryViewModelTest {
         
         val event = viewModel.onAction(SummaryAction.BackClicked)
         assertEquals(SummaryEvent.ExitTask, event)
+    }
+
+    @Test
+    fun `start with empty taskOutputs represents fallback behavior scenario`() {
+        viewModel.start(emptyMap())
+        val state = viewModel.state.value
+        assertNotNull(state)
+        assertEquals(emptyMap<String, String>(), state?.taskOutputs)
     }
 }
